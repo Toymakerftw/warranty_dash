@@ -85,36 +85,74 @@
         </div>
     </div>
 
-    <!-- Recent Alerts -->
-    <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold">Recent Alerts</h2>
-            <button onclick="refreshAlerts()" class="text-gray-500 hover:text-primary">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-        </div>
-        <div id="alerts-container" class="space-y-4">
-            {% for alert in alerts %}
-            <div class="alert-item flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
-                 data-type="{{ alert.type }}"
-                 data-manufacturer="{{ alert.manufacturer }}"
-                 data-model="{{ alert.model or '' }}"
-                 data-days="{{ alert.days }}">
-                <div class="bg-{{ alert.type }}-100 text-{{ alert.type }}-500 p-2 rounded-full mr-3">
+<!-- Recent Alerts -->
+<div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold">Recent Alerts</h2>
+        <button onclick="refreshAlerts()" class="text-gray-500 hover:text-primary">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+    <div id="alerts-container" class="space-y-3">
+        {% for alert in alerts %}
+        <div class="alert-item flex items-start p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50"
+             data-type="{{ alert.type }}"
+             data-manufacturer="{{ alert.manufacturer }}"
+             data-model="{{ alert.model or '' }}"
+             data-days="{{ alert.days }}"
+             >
+            
+            <!-- Colored icon with badge -->
+            <div class="relative mr-3">
+                <div class="flex items-center justify-center h-10 w-10 rounded-full 
+                    {% if alert.type == 'warning' %}bg-yellow-100 text-yellow-600
+                    {% elif alert.type == 'danger' %}bg-red-100 text-red-600
+                    {% else %}bg-blue-100 text-blue-600{% endif %}">
                     <i class="fas {{ alert.icon }}"></i>
                 </div>
-                <div>
-                    <p class="font-medium">{{ alert.title }}</p>
-                    <p class="text-sm text-gray-500">{{ alert.message }}</p>
+                <!-- Small badge for count -->
+                <span class="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none 
+                    {% if alert.type == 'warning' %}bg-yellow-500 text-white
+                    {% elif alert.type == 'danger' %}bg-red-500 text-white
+                    {% else %}bg-blue-500 text-white{% endif %} rounded-full">
+                    {{ alert.count or '!' }}
+                </span>
+            </div>
+            
+            <!-- Alert content -->
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">
+                    {{ alert.title }}
+                </p>
+                <p class="text-sm text-gray-500">
+                    {{ alert.message }}
+                </p>
+                <div class="mt-1 flex items-center text-xs text-gray-500">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full 
+                        {% if alert.type == 'warning' %}bg-yellow-100 text-yellow-800
+                        {% elif alert.type == 'danger' %}bg-red-100 text-red-800
+                        {% else %}bg-blue-100 text-blue-800{% endif %}">
+                        {% if alert.type == 'warning' %}Expiring Soon
+                        {% elif alert.type == 'danger' %}Expired
+                        {% else %}New{% endif %}
+                    </span>
+                    <span class="ml-2">{{ alert.days }} days</span>
                 </div>
             </div>
-            {% else %}
-            <div class="text-center text-gray-500 py-4">
-                No recent alerts
+            
+            <!-- Chevron icon -->
+            <div class="ml-2 flex-shrink-0 text-gray-400">
+                <i class="fas fa-chevron-right"></i>
             </div>
-            {% endfor %}
         </div>
+        {% else %}
+        <div class="text-center py-4 text-gray-500">
+            <i class="fas fa-bell-slash text-2xl mb-2"></i>
+            <p>No recent alerts</p>
+        </div>
+        {% endfor %}
     </div>
+</div>
 </div>
 
 <!-- Recent Assets Table -->

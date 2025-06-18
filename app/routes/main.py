@@ -63,11 +63,12 @@ def generate_alerts():
         alerts.append({
             'type': 'warning',
             'icon': 'fa-clock',
-            'title': f"{item['count']} {item['manufacturer']} {item['model'] or 'devices'} expiring soon",
+            'title': f"{item['manufacturer']} {item['model'] or 'devices'} expiring soon",
             'message': 'Action required to renew warranties',
             'manufacturer': item['manufacturer'],
             'model': item['model'],
-            'days': 30
+            'days': 30,
+            'count': item['count']  # Add count for badge
         })
     
     # Recently expired alerts
@@ -75,12 +76,13 @@ def generate_alerts():
     for item in expired:
         alerts.append({
             'type': 'danger',
-            'icon': 'fa-exclamation',
-            'title': f"{item['count']} {item['manufacturer']} {item['model'] or 'devices'} warranties expired",
+            'icon': 'fa-exclamation-circle',
+            'title': f"{item['manufacturer']} {item['model'] or 'devices'} warranties expired",
             'message': 'Need immediate attention',
             'manufacturer': item['manufacturer'],
             'model': item['model'],
-            'days': 30
+            'days': 30,
+            'count': item['count']  # Add count for badge
         })
     
     # Newly added assets
@@ -89,11 +91,12 @@ def generate_alerts():
         alerts.append({
             'type': 'info',
             'icon': 'fa-plus-circle',
-            'title': f"{item['count']} new {item['manufacturer']} {item['model'] or 'devices'} added",
+            'title': f"New {item['manufacturer']} {item['model'] or 'devices'} added",
             'message': 'Recently added to inventory',
             'manufacturer': item['manufacturer'],
             'model': item['model'],
-            'days': 7
+            'days': 7,
+            'count': item['count']  # Add count for badge
         })
     
     return alerts[:3]  # Return top 3 most important alerts
