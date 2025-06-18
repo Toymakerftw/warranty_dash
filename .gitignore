@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.env
+.flaskenv
+.pytest_cache/
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+pip-log.txt
+pip-delete-this-directory.txt
+.python-version
+
+# Distribution / build
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Thumbs.db files
+Thumbs.db
+ehthumbs.db
+## Mac OS X ##
+.DS_Store
+.Trashes
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*~
+._*
+.history/
+
+# Flask-specific
+instance/
+# You may want to ignore uploads or database files depending on your app
+# upload/
+# *.db
+
+# For example, if you use a SQLite database
+# *.sqlite
+# *.sqlite3
+
+# Logs
+*.log
+
+# Environment variables files
+.env
+.flaskenv

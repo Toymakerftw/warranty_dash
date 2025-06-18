@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Asset Warranty Dashboard{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3490dc',
+                        secondary: '#ffed4a',
+                        danger: '#e3342f',
+                        success: '#38c172',
+                        info: '#6cb2eb',
+                        snipe: '#3a3f58',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar bg-snipe text-white w-64 space-y-6 px-2 py-4 absolute inset-y-0 left-0 transform md:relative md:translate-x-0">
+            <div class="flex items-center space-x-2 px-4">
+                <i class="fas fa-laptop-code text-2xl text-primary"></i>
+                <span class="text-xl font-bold">WarrantyTrack</span>
+                <button class="md:hidden ml-auto text-white" id="closeSidebar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <nav>
+                <a href="{{ url_for('main.dashboard') }}" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200 {% if request.path == url_for('main.dashboard') %}bg-primary text-white{% endif %}">
+                    <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+                </a>
+                <a href="{{ url_for('assets.upload_csv') }}" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200 {% if request.path == url_for('assets.upload_csv') %}bg-primary text-white{% endif %}">
+                    <i class="fas fa-laptop mr-2"></i>Assets
+                </a>
+                <a href="#" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200">
+                    <i class="fas fa-bell mr-2"></i>Alerts
+                </a>
+                <a href="#" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200">
+                    <i class="fas fa-chart-bar mr-2"></i>Reports
+                </a>
+                <a href="#" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200">
+                    <i class="fas fa-cog mr-2"></i>Settings
+                </a>
+                <div class="border-t border-gray-600 my-2"></div>
+                <a href="#" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200">
+                    <i class="fas fa-sync-alt mr-2"></i>Sync with Snipe-IT
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-x-hidden">
+            <!-- Top Navigation -->
+            <header class="bg-white shadow-sm">
+                <div class="flex items-center justify-between px-4 py-3">
+                    <div class="flex items-center">
+                        <button class="md:hidden text-gray-600" id="toggleSidebar">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                        <div class="relative mx-4">
+                            <input type="text" placeholder="Search assets..." class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button class="relative text-gray-600 hover:text-gray-800">
+                            <i class="fas fa-bell text-xl"></i>
+                            <span class="absolute -top-1 -right-1 bg-danger rounded-full w-4 h-4 text-xs text-white flex items-center justify-center">5</span>
+                        </button>
+                        <div class="flex items-center space-x-2">
+                            <img src="https://randomuser.me/api/portraits/men/1.jpg" alt="User" class="w-8 h-8 rounded-full">
+                            <span class="font-medium">Admin User</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="p-4 md:p-6">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert mb-4 px-4 py-3 rounded relative {{ 'bg-green-100 text-green-700' if category == 'success' else 'bg-red-100 text-red-700' }}">
+                                {{ message }}
+                                <button class="absolute top-0 right-0 px-3 py-1" onclick="this.parentElement.remove()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Asset Modal (hidden by default) -->
+    <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden" id="assetModal">
+        <!-- Modal content will be loaded here dynamically -->
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/js/scripts.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

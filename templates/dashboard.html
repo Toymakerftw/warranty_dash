@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Asset Warranty{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+    <div>
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Warranty Dashboard</h1>
+        <p class="text-gray-600">Track and manage warranty information for your {{ stats.total_assets }}+ assets</p>
+    </div>
+    <div class="flex space-x-3 mt-4 md:mt-0">
+        <button class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh Data
+        </button>
+        <button class="bg-success hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center">
+            <i class="fas fa-file-export mr-2"></i> Export
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-full text-primary mr-4">
+                <i class="fas fa-laptop fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Total Assets</p>
+                <h3 class="text-2xl font-bold">{{ stats.total_assets }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-orange-100 rounded-full text-orange-500 mr-4">
+                <i class="fas fa-clock fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Expiring Soon</p>
+                <h3 class="text-2xl font-bold">{{ stats.expiring_soon }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-red-100 rounded-full text-danger mr-4">
+                <i class="fas fa-exclamation-triangle fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Expired</p>
+                <h3 class="text-2xl font-bold">{{ stats.expired }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-full text-success mr-4">
+                <i class="fas fa-check-circle fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Active Warranty</p>
+                <h3 class="text-2xl font-bold">{{ stats.active }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts and Main Content -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- Warranty Status Chart -->
+    <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
+        <h2 class="text-lg font-semibold mb-4">Warranty Status</h2>
+        <div class="chart-container">
+            <canvas id="warrantyChart" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Manufacturer Distribution -->
+    <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
+        <h2 class="text-lg font-semibold mb-4">Manufacturers</h2>
+        <div class="chart-container">
+            <canvas id="manufacturerChart" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Recent Alerts -->
+    <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold">Recent Alerts</h2>
+            <button class="text-gray-500 hover:text-primary">
+                <i class="fas fa-ellipsis-h"></i>
+            </button>
+        </div>
+        <div class="space-y-4">
+            <div class="flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                <div class="bg-danger text-white p-2 rounded-full mr-3">
+                    <i class="fas fa-exclamation"></i>
+                </div>
+                <div>
+                    <p class="font-medium">15 Dell laptops expiring in 30 days</p>
+                    <p class="text-sm text-gray-500">Action required to renew warranties</p>
+                </div>
+            </div>
+            <div class="flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                <div class="bg-warning text-white p-2 rounded-full mr-3">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <p class="font-medium">New Lenovo models added</p>
+                    <p class="text-sm text-gray-500">5 new Lenovo ThinkPads synced from Snipe-IT</p>
+                </div>
+            </div>
+            <div class="flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                <div class="bg-danger text-white p-2 rounded-full mr-3">
+                    <i class="fas fa-exclamation"></i>
+                </div>
+                <div>
+                    <p class="font-medium">3 ASUS warranties expired</p>
+                    <p class="text-sm text-gray-500">Need immediate attention</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Assets Table -->
+<div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+    <div class="flex justify-between items-center px-6 py-4 border-b">
+        <h2 class="text-lg font-semibold">Recent Assets</h2>
+        <div class="flex space-x-2">
+            <select class="border rounded-md px-3 py-1 text-sm">
+                <option>All Manufacturers</option>
+                {% for manufacturer in manufacturers %}
+                <option>{{ manufacturer.manufacturer }}</option>
+                {% endfor %}
+            </select>
+            <select class="border rounded-md px-3 py-1 text-sm">
+                <option>All Status</option>
+                <option>Active</option>
+                <option>Expiring Soon</option>
+                <option>Expired</option>
+            </select>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Tag</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manufacturer</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Warranty Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expires In</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for asset in assets %}
+                <tr class="cursor-pointer hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ asset.asset_tag }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center">
+                            <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                                <i class="fab fa-windows text-blue-500 text-xs"></i>
+                            </div>
+                            {{ asset.manufacturer }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ asset.model or 'N/A' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ asset.service_tag }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if asset.status == 'Active' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
+                        {% elif asset.status == 'Expiring Soon' %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Expiring Soon</span>
+                        {% else %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Expired</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-16 bg-gray-200 rounded-full h-2">
+                                {% if asset.status == 'Active' %}
+                                <div class="bg-green-500 h-2 rounded-full" style="width: 75%"></div>
+                                {% elif asset.status == 'Expiring Soon' %}
+                                <div class="bg-yellow-500 h-2 rounded-full" style="width: 30%"></div>
+                                {% else %}
+                                <div class="bg-red-500 h-2 rounded-full" style="width: 0%"></div>
+                                {% endif %}
+                            </div>
+                            <span>128 days</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <a href="{{ url_for('assets.edit_asset', asset_id=asset.id) }}" class="text-primary hover:text-blue-700 mr-3">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <button class="text-danger hover:text-red-700" onclick="confirmDelete({{ asset.id }})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+        <div class="text-sm text-gray-500">
+            Showing <span class="font-medium">1</span> to <span class="font-medium">{{ assets|length }}</span> of <span class="font-medium">{{ stats.total_assets }}</span> assets
+        </div>
+        <div class="flex space-x-2">
+            <button class="px-3 py-1 border rounded-md text-sm disabled:text-gray-400" disabled>
+                Previous
+            </button>
+            <button class="px-3 py-1 border rounded-md text-sm bg-primary text-white">
+                1
+            </button>
+            <button class="px-3 py-1 border rounded-md text-sm">
+                2
+            </button>
+            <button class="px-3 py-1 border rounded-md text-sm">
+                3
+            </button>
+            <button class="px-3 py-1 border rounded-md text-sm">
+                Next
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-primary">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-full text-primary mr-4">
+                <i class="fas fa-sync-alt"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Sync with Snipe-IT</h3>
+                <p class="text-sm text-gray-500">Pull latest asset data</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-warning">
+        <div class="flex items-center">
+            <div class="p-3 bg-yellow-100 rounded-full text-warning mr-4">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Set Alerts</h3>
+                <p class="text-sm text-gray-500">Configure notifications</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-danger">
+        <div class="flex items-center">
+            <div class="p-3 bg-red-100 rounded-full text-danger mr-4">
+                <i class="fas fa-file-pdf"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Generate Report</h3>
+                <p class="text-sm text-gray-500">Export warranty data</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-success">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-full text-success mr-4">
+                <i class="fas fa-search"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Warranty Check</h3>
+                <p class="text-sm text-gray-500">Manual lookup</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize charts for dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+        // Warranty Status Chart
+        const warrantyCtx = document.getElementById('warrantyChart').getContext('2d');
+        const warrantyChart = new Chart(warrantyCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Active', 'Expiring Soon', 'Expired'],
+                datasets: [{
+                    data: [{{ stats.active }}, {{ stats.expiring_soon }}, {{ stats.expired }}],
+                    backgroundColor: [
+                        '#38c172',
+                        '#ffed4a',
+                        '#e3342f'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                    }
+                },
+                cutout: '70%'
+            }
+        });
+
+        // Manufacturer Distribution Chart
+        const manufacturerCtx = document.getElementById('manufacturerChart').getContext('2d');
+        const manufacturerChart = new Chart(manufacturerCtx, {
+            type: 'bar',
+            data: {
+                labels: [
+                    {% for manufacturer in manufacturers %}
+                        '{{ manufacturer.manufacturer }}',
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: 'Assets by Manufacturer',
+                    data: [
+                        {% for manufacturer in manufacturers %}
+                            {{ manufacturer.count }},
+                        {% endfor %}
+                    ],
+                    backgroundColor: [
+                        '#3490dc',
+                        '#6cb2eb',
+                        '#3d7ea8',
+                        '#2c5282',
+                        '#1a365d'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false,
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        function confirmDelete(assetId) {
+            if (confirm('Are you sure you want to delete this asset?')) {
+                window.location.href = `/assets/delete/${assetId}`;
+            }
+        }
+    });
+</script>
+{% endblock %}
