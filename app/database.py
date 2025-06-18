@@ -25,7 +25,8 @@ def init_db():
         model TEXT,
         warranty_end_date TEXT,
         purchase_date TEXT,
-        notes TEXT
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
     )
     ''')
     db.commit()
@@ -52,6 +53,48 @@ def calculate_warranty_stats():
         'expiring_soon': expiring_soon,
         'active': active
     }
+
+def get_expiring_assets(days=30):
+    """Get assets expiring within the next X days"""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("""
+        SELECT manufacturer, model, COUNT(*) as count
+        FROM assets
+        WHERE warranty_end_date BETWEEN date('now') AND date('now', ?)
+        GROUP BY manufacturer, model
+        ORDER BY count DESC
+        LIMIT 5
+    """, (f"+{days} days",))
+    return cursor.fetchall()
+
+def get_recently_expired_assets(days=30):
+    """Get assets that expired in the last X days"""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("""
+        SELECT manufacturer, model, COUNT(*) as count
+        FROM assets
+        WHERE warranty_end_date BETWEEN date('now', ?) AND date('now')
+        GROUP BY manufacturer, model
+        ORDER BY count DESC
+        LIMIT 5
+    """, (f"-{days} days",))
+    return cursor.fetchall()
+
+def get_recently_added_assets(days=7):
+    """Get assets added in the last X days"""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("""
+        SELECT manufacturer, model, COUNT(*) as count
+        FROM assets
+        WHERE DATE(created_at) > date('now', ?)
+        GROUP BY manufacturer, model
+        ORDER BY count DESC
+        LIMIT 5
+    """, (f"-{days} days",))
+    return cursor.fetchall()
 
 def normalize_date(date_str):
     if not date_str:

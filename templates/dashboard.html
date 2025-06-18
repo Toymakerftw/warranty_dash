@@ -9,6 +9,14 @@
         <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Warranty Dashboard</h1>
         <p class="text-gray-600">Track and manage warranty information for your <span class="stats-total">{{ stats.total_assets }}</span>+ assets</p>
     </div>
+    <div class="flex space-x-3 mt-4 md:mt-0">
+        <button onclick="refreshData()" class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh Data
+        </button>
+        <a href="{{ url_for('assets.upload_csv') }}" class="bg-success hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center">
+            <i class="fas fa-file-import mr-2"></i> Import
+        </a>
+    </div>
 </div>
 
 <!-- Stats Cards -->
@@ -81,38 +89,30 @@
     <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-lg font-semibold">Recent Alerts</h2>
-            <button class="text-gray-500 hover:text-primary">
-                <i class="fas fa-ellipsis-h"></i>
+            <button onclick="refreshAlerts()" class="text-gray-500 hover:text-primary">
+                <i class="fas fa-sync-alt"></i>
             </button>
         </div>
-        <div class="space-y-4">
-            <div class="flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
-                <div class="bg-danger text-white p-2 rounded-full mr-3">
-                    <i class="fas fa-exclamation"></i>
+        <div id="alerts-container" class="space-y-4">
+            {% for alert in alerts %}
+            <div class="alert-item flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                 data-type="{{ alert.type }}"
+                 data-manufacturer="{{ alert.manufacturer }}"
+                 data-model="{{ alert.model or '' }}"
+                 data-days="{{ alert.days }}">
+                <div class="bg-{{ alert.type }}-100 text-{{ alert.type }}-500 p-2 rounded-full mr-3">
+                    <i class="fas {{ alert.icon }}"></i>
                 </div>
                 <div>
-                    <p class="font-medium">15 Dell laptops expiring in 30 days</p>
-                    <p class="text-sm text-gray-500">Action required to renew warranties</p>
+                    <p class="font-medium">{{ alert.title }}</p>
+                    <p class="text-sm text-gray-500">{{ alert.message }}</p>
                 </div>
             </div>
-            <div class="flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
-                <div class="bg-warning text-white p-2 rounded-full mr-3">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div>
-                    <p class="font-medium">New Lenovo models added</p>
-                    <p class="text-sm text-gray-500">5 new Lenovo ThinkPads synced from Snipe-IT</p>
-                </div>
+            {% else %}
+            <div class="text-center text-gray-500 py-4">
+                No recent alerts
             </div>
-            <div class="flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
-                <div class="bg-danger text-white p-2 rounded-full mr-3">
-                    <i class="fas fa-exclamation"></i>
-                </div>
-                <div>
-                    <p class="font-medium">3 ASUS warranties expired</p>
-                    <p class="text-sm text-gray-500">Need immediate attention</p>
-                </div>
-            </div>
+            {% endfor %}
         </div>
     </div>
 </div>
@@ -120,7 +120,7 @@
 <!-- Recent Assets Table -->
 <div class="bg-white rounded-lg shadow overflow-hidden mb-6">
     <div class="flex justify-between items-center px-6 py-4 border-b">
-        <h2 class="text-lg font-semibold">Recent Assets</h2>
+        <h2 class="text-lg font-semibold">Asset Inventory</h2>
         <div class="flex space-x-2">
             <form id="filter-form" method="get" class="flex space-x-2">
                 <select name="manufacturer" class="border rounded-md px-3 py-1 text-sm">
@@ -158,11 +158,82 @@
 
 <!-- Quick Actions -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <!-- Quick action cards... -->
+    <a href="{{ url_for('assets.upload_csv') }}" class="bg-white p-4 rounded-lg shadow border-t-4 border-primary hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-full text-primary mr-4">
+                <i class="fas fa-file-import"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Import Assets</h3>
+                <p class="text-sm text-gray-500">Upload CSV file</p>
+            </div>
+        </div>
+    </a>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-warning hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-yellow-100 rounded-full text-warning mr-4">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Set Alerts</h3>
+                <p class="text-sm text-gray-500">Configure notifications</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-danger hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-red-100 rounded-full text-danger mr-4">
+                <i class="fas fa-file-pdf"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Generate Report</h3>
+                <p class="text-sm text-gray-500">Export warranty data</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-success hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-full text-success mr-4">
+                <i class="fas fa-search"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Warranty Check</h3>
+                <p class="text-sm text-gray-500">Manual lookup</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Details Modal -->
+<div id="alertModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center pb-3">
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-800"></h3>
+            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div id="modalContent" class="mt-4">
+            <div class="flex justify-center">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            </div>
+        </div>
+        
+        <div class="mt-6 flex justify-end space-x-3">
+            <button onclick="closeModal()" class="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100">
+                Close
+            </button>
+            <button id="exportButton" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-600 hidden">
+                <i class="fas fa-file-export mr-2"></i> Export to CSV
+            </button>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     // Initialize charts
     let warrantyChart, manufacturerChart;
@@ -236,21 +307,13 @@
                     document.querySelector(`tr[data-id="${assetId}"]`).remove();
                     
                     // Update stats cards
-                    document.querySelector('.stats-total').textContent = data.stats.total_assets;
-                    document.querySelector('.stats-expiring').textContent = data.stats.expiring_soon;
-                    document.querySelector('.stats-expired').textContent = data.stats.expired;
-                    document.querySelector('.stats-active').textContent = data.stats.active;
-                    
-                    // Update charts
-                    warrantyChart.data.datasets[0].data = [
-                        data.stats.active, 
-                        data.stats.expiring_soon, 
-                        data.stats.expired
-                    ];
-                    warrantyChart.update();
+                    updateStats(data.stats);
                     
                     // Show success message
                     showFlashMessage(data.message, 'success');
+                    
+                    // Refresh alerts after deletion
+                    refreshAlerts();
                 } else {
                     showFlashMessage(data.message, 'danger');
                 }
@@ -262,10 +325,28 @@
         }
     }
 
+    // Update stats display
+    function updateStats(stats) {
+        document.querySelector('.stats-total').textContent = stats.total_assets;
+        document.querySelector('.stats-expiring').textContent = stats.expiring_soon;
+        document.querySelector('.stats-expired').textContent = stats.expired;
+        document.querySelector('.stats-active').textContent = stats.active;
+        
+        // Update charts
+        warrantyChart.data.datasets[0].data = [
+            stats.active, 
+            stats.expiring_soon, 
+            stats.expired
+        ];
+        warrantyChart.update();
+    }
+
     // AJAX Filter and Pagination Function
     function applyFilters(url = null) {
         const urlObj = url ? new URL(url) : new URL(window.location);
         const params = urlObj.searchParams.toString();
+        
+        showLoadingIndicator();
         
         fetch(`${urlObj.pathname}?${params}`, {
             headers: {'X-Requested-With': 'XMLHttpRequest'}
@@ -281,18 +362,10 @@
             document.getElementById('assets-table-container').innerHTML = data.html;
             
             // Update stats
-            document.querySelector('.stats-total').textContent = data.stats.total_assets;
-            document.querySelector('.stats-expiring').textContent = data.stats.expiring_soon;
-            document.querySelector('.stats-expired').textContent = data.stats.expired;
-            document.querySelector('.stats-active').textContent = data.stats.active;
+            updateStats(data.stats);
             
-            // Update charts
-            warrantyChart.data.datasets[0].data = [
-                data.stats.active, 
-                data.stats.expiring_soon, 
-                data.stats.expired
-            ];
-            warrantyChart.update();
+            // Update alerts
+            updateAlerts(data.alerts);
             
             // Update URL without reloading
             window.history.replaceState(null, '', urlObj.toString());
@@ -300,10 +373,234 @@
             // Reattach event listeners
             attachDeleteListeners();
             attachPaginationListeners();
+            attachAlertListeners();
         })
         .catch(error => {
             console.error('Error:', error);
             showFlashMessage('Error loading data', 'danger');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+    }
+
+    // Update alerts display
+    function updateAlerts(alerts) {
+        const alertsContainer = document.getElementById('alerts-container');
+        if (alerts && alerts.length > 0) {
+            let alertsHTML = '';
+            alerts.forEach(alert => {
+                alertsHTML += `
+                    <div class="alert-item flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                         data-type="${alert.type}"
+                         data-manufacturer="${alert.manufacturer}"
+                         data-model="${alert.model || ''}"
+                         data-days="${alert.days}">
+                        <div class="bg-${alert.type}-100 text-${alert.type}-500 p-2 rounded-full mr-3">
+                            <i class="fas ${alert.icon}"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium">${alert.title}</p>
+                            <p class="text-sm text-gray-500">${alert.message}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            alertsContainer.innerHTML = alertsHTML;
+            
+            // Reattach alert click listeners
+            attachAlertListeners();
+        } else {
+            alertsContainer.innerHTML = `
+                <div class="text-center text-gray-500 py-4">
+                    No recent alerts
+                </div>
+            `;
+        }
+    }
+
+    // Refresh alerts data
+    function refreshAlerts() {
+        fetch('{{ url_for("main.dashboard") }}?alerts_only=1', {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateAlerts(data.alerts);
+        })
+        .catch(error => {
+            console.error('Error refreshing alerts:', error);
+        });
+    }
+
+    // Refresh all data
+    function refreshData() {
+        applyFilters();
+    }
+
+    // Show loading indicator
+    function showLoadingIndicator() {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loading-indicator';
+        loadingDiv.className = 'fixed top-0 left-0 w-full h-1 bg-primary z-50';
+        document.body.appendChild(loadingDiv);
+    }
+
+    // Hide loading indicator
+    function hideLoadingIndicator() {
+        const loadingDiv = document.getElementById('loading-indicator');
+        if (loadingDiv) {
+            loadingDiv.remove();
+        }
+    }
+
+    // Show modal with alert details
+    function showAlertDetails(alertElement) {
+        const type = alertElement.dataset.type;
+        const manufacturer = alertElement.dataset.manufacturer;
+        const model = alertElement.dataset.model;
+        const days = alertElement.dataset.days;
+        
+        // Set modal title based on alert type
+        const modalTitle = document.getElementById('modalTitle');
+        let title = '';
+        
+        switch(type) {
+            case 'warning':
+                title = 'Expiring Soon Assets';
+                break;
+            case 'danger':
+                title = 'Expired Assets';
+                break;
+            case 'info':
+                title = 'Recently Added Assets';
+                break;
+            default:
+                title = 'Alert Details';
+        }
+        
+        modalTitle.textContent = title;
+        
+        // Show modal
+        const modal = document.getElementById('alertModal');
+        modal.classList.remove('hidden');
+        
+        // Show loader
+        const modalContent = document.getElementById('modalContent');
+        modalContent.innerHTML = `
+            <div class="flex justify-center">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            </div>
+        `;
+        
+        // Hide export button until data loads
+        document.getElementById('exportButton').classList.add('hidden');
+        
+        // Fetch alert details
+        fetch(`/alerts/details?type=${type}&manufacturer=${encodeURIComponent(manufacturer)}&model=${encodeURIComponent(model)}&days=${days}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.assets && data.assets.length > 0) {
+                    // Build table with alert details
+                    let tableHTML = `
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Tag</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Warranty Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiration Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Remaining</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                    `;
+                    
+                    data.assets.forEach(asset => {
+                        let statusClass = '';
+                        let statusText = '';
+                        let daysRemaining = asset.days_until_expiry;
+                        
+                        if (asset.status === 'Active') {
+                            statusClass = 'bg-green-100 text-green-800';
+                            statusText = 'Active';
+                        } else if (asset.status === 'Expiring Soon') {
+                            statusClass = 'bg-yellow-100 text-yellow-800';
+                            statusText = 'Expiring Soon';
+                        } else {
+                            statusClass = 'bg-red-100 text-red-800';
+                            statusText = 'Expired';
+                            daysRemaining = 'Expired';
+                        }
+                        
+                        tableHTML += `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${asset.asset_tag}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${asset.service_tag}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs rounded-full ${statusClass}">${statusText}</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${asset.warranty_end_date}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${daysRemaining}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    tableHTML += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 text-sm text-gray-500">
+                            Showing ${data.assets.length} of ${data.total_count} assets
+                        </div>
+                    `;
+                    
+                    modalContent.innerHTML = tableHTML;
+                    
+                    // Show export button
+                    const exportButton = document.getElementById('exportButton');
+                    exportButton.classList.remove('hidden');
+                    exportButton.onclick = function() {
+                        exportAlertDetails(type, manufacturer, model, days);
+                    };
+                } else {
+                    modalContent.innerHTML = `
+                        <div class="text-center py-4">
+                            <i class="fas fa-info-circle text-3xl text-gray-400 mb-3"></i>
+                            <p class="text-gray-600">No assets found for this alert</p>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching alert details:', error);
+                modalContent.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
+                        <p class="text-gray-600">Failed to load alert details</p>
+                    </div>
+                `;
+            });
+    }
+    
+    // Export alert details to CSV
+    function exportAlertDetails(type, manufacturer, model, days) {
+        const url = `/alerts/export?type=${type}&manufacturer=${encodeURIComponent(manufacturer)}&model=${encodeURIComponent(model)}&days=${days}`;
+        window.location.href = url;
+    }
+    
+    // Close modal
+    function closeModal() {
+        document.getElementById('alertModal').classList.add('hidden');
+    }
+    
+    // Attach alert click listeners
+    function attachAlertListeners() {
+        document.querySelectorAll('.alert-item').forEach(alert => {
+            alert.addEventListener('click', (e) => {
+                showAlertDetails(alert);
+            });
         });
     }
 
@@ -353,6 +650,14 @@
         initCharts();
         attachDeleteListeners();
         attachPaginationListeners();
+        attachAlertListeners();
+        
+        // Close modal when clicking outside
+        document.getElementById('alertModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('alertModal')) {
+                closeModal();
+            }
+        });
         
         // Filter form submission
         document.getElementById('filter-form').addEventListener('submit', (e) => {
@@ -375,4 +680,20 @@
         });
     });
 </script>
+
+<style>
+    .loader {
+        border-top-color: #3498db;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    #alertModal {
+        transition: opacity 0.3s ease;
+    }
+</style>
 {% endblock %}

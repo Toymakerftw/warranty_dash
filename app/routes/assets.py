@@ -46,15 +46,16 @@ def upload_csv():
                             logging.warning(f"Row {row_num}: Missing required fields - {row}")
                             continue
                             
-                        # Insert into database
+                        # Insert into database with created_at timestamp
                         cursor.execute('''
                             INSERT INTO assets (
                                 asset_tag, 
                                 service_tag, 
                                 manufacturer, 
                                 model,
-                                warranty_end_date
-                            ) VALUES (?, ?, ?, ?, ?)
+                                warranty_end_date,
+                                created_at
+                            ) VALUES (?, ?, ?, ?, ?, datetime('now'))
                         ''', (
                             asset_tag,
                             service_tag,
@@ -115,7 +116,7 @@ def edit_asset(asset_id):
                 flash('Asset Tag, Service Tag, and Manufacturer are required', 'danger')
                 return redirect(url_for('assets.edit_asset', asset_id=asset_id))
             
-            # Update asset in database
+            # Update asset in database (preserve created_at)
             cursor.execute('''
                 UPDATE assets SET
                     asset_tag = ?,
