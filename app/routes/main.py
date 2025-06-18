@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, request, render_template, jsonify
 from app.database import get_db, calculate_warranty_stats
 from datetime import datetime
 import math

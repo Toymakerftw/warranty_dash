@@ -62,7 +62,7 @@
                     <a href="{{ url_for('assets.edit_asset', asset_id=asset.id) }}" class="text-primary hover:text-blue-700 mr-3">
                         <i class="fas fa-edit"></i>
                     </a>
-                    <button class="text-danger hover:text-red-700" onclick="deleteAsset({{ asset.id }})">
+                    <button class="text-danger hover:text-red-700 delete-btn" data-id="{{ asset.id }}">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -97,7 +97,7 @@
                               page=pagination.page-1,
                               status=current_status,
                               manufacturer=current_manufacturer) }}" 
-               class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100">
+               class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100 pagination-link">
                 Previous
             </a>
         {% else %}
@@ -113,7 +113,7 @@
                                       page=p,
                                       status=current_status,
                                       manufacturer=current_manufacturer) }}" 
-                       class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100">
+                       class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100 pagination-link">
                         {{ p }}
                     </a>
                 {% endif %}
@@ -125,7 +125,7 @@
                               page=pagination.page+1,
                               status=current_status,
                               manufacturer=current_manufacturer) }}" 
-               class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100">
+               class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100 pagination-link">
                 Next
             </a>
         {% else %}

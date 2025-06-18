@@ -9,14 +9,6 @@
         <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Warranty Dashboard</h1>
         <p class="text-gray-600">Track and manage warranty information for your <span class="stats-total">{{ stats.total_assets }}</span>+ assets</p>
     </div>
-    <div class="flex space-x-3 mt-4 md:mt-0">
-        <button class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center">
-            <i class="fas fa-sync-alt mr-2"></i> Refresh Data
-        </button>
-        <button class="bg-success hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center">
-            <i class="fas fa-file-export mr-2"></i> Export
-        </button>
-    </div>
 </div>
 
 <!-- Stats Cards -->
@@ -270,16 +262,20 @@
         }
     }
 
-    // AJAX Filter Function
-    function applyFilters() {
-        const form = document.getElementById('filter-form');
-        const formData = new FormData(form);
-        const params = new URLSearchParams(formData).toString();
+    // AJAX Filter and Pagination Function
+    function applyFilters(url = null) {
+        const urlObj = url ? new URL(url) : new URL(window.location);
+        const params = urlObj.searchParams.toString();
         
-        fetch(`{{ url_for('main.dashboard') }}?${params}`, {
+        fetch(`${urlObj.pathname}?${params}`, {
             headers: {'X-Requested-With': 'XMLHttpRequest'}
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(data => {
             // Update table section
             document.getElementById('assets-table-container').innerHTML = data.html;
@@ -298,11 +294,16 @@
             ];
             warrantyChart.update();
             
+            // Update URL without reloading
+            window.history.replaceState(null, '', urlObj.toString());
+            
             // Reattach event listeners
             attachDeleteListeners();
+            attachPaginationListeners();
         })
         .catch(error => {
             console.error('Error:', error);
+            showFlashMessage('Error loading data', 'danger');
         });
     }
 
@@ -312,6 +313,16 @@
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 deleteAsset(btn.dataset.id);
+            });
+        });
+    }
+    
+    // Attach pagination listeners
+    function attachPaginationListeners() {
+        document.querySelectorAll('.pagination-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                applyFilters(link.href);
             });
         });
     }
@@ -341,16 +352,26 @@
     document.addEventListener('DOMContentLoaded', () => {
         initCharts();
         attachDeleteListeners();
+        attachPaginationListeners();
         
         // Filter form submission
         document.getElementById('filter-form').addEventListener('submit', (e) => {
             e.preventDefault();
-            applyFilters();
+            
+            // Get form data
+            const formData = new FormData(e.target);
+            const params = new URLSearchParams(formData).toString();
+            
+            // Create new URL with updated parameters
+            const newUrl = new URL(window.location);
+            newUrl.search = params;
+            
+            applyFilters(newUrl.toString());
         });
         
         // Handle popstate for back/forward navigation
-        window.addEventListener('popstate', () => {
-            applyFilters();
+        window.addEventListener('popstate', (e) => {
+            applyFilters(window.location.href);
         });
     });
 </script>
