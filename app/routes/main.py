@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template, request
-from app.database import get_db
+from flask import Blueprint, render_template, request, jsonify
+from app.database import get_db, calculate_warranty_stats
 from datetime import datetime
 import math
 
@@ -13,24 +13,7 @@ def dashboard():
     cursor = db.cursor()
     
     # Calculate warranty stats
-    cursor.execute("SELECT COUNT(*) FROM assets")
-    total_assets = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(*) FROM assets WHERE warranty_end_date < date('now')")
-    expired = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(*) FROM assets WHERE warranty_end_date BETWEEN date('now') AND date('now', '+90 days')")
-    expiring_soon = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT COUNT(*) FROM assets WHERE warranty_end_date > date('now', '+90 days')")
-    active = cursor.fetchone()[0]
-    
-    stats = {
-        'total_assets': total_assets,
-        'expired': expired,
-        'expiring_soon': expiring_soon,
-        'active': active
-    }
+    stats = calculate_warranty_stats()
     
     # Get filter parameters from request
     status_filter = request.args.get('status', 'all')
@@ -100,6 +83,22 @@ def dashboard():
         LIMIT 10
     """)
     manufacturers = cursor.fetchall()
+    
+    # Handle AJAX requests
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'html': render_template('_asset_table.html',
+                                  assets=assets,
+                                  current_status=status_filter,
+                                  current_manufacturer=manufacturer_filter,
+                                  pagination={
+                                      'page': page,
+                                      'total_pages': total_pages,
+                                      'total_items': total_items,
+                                      'items_per_page': ITEMS_PER_PAGE
+                                  }),
+            'stats': stats
+        })
     
     return render_template('dashboard.html', 
                          stats=stats,

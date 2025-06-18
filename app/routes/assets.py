@@ -1,4 +1,4 @@
-from flask import Blueprint, request, redirect, url_for, flash, render_template
+from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify
 from app.database import get_db, normalize_date
 import csv
 from io import TextIOWrapper
@@ -111,7 +111,7 @@ def edit_asset(asset_id):
             }
             
             # Validate required fields
-            if not all(form_data['asset_tag'], form_data['service_tag'], form_data['manufacturer']):
+            if not all([form_data['asset_tag'], form_data['service_tag'], form_data['manufacturer']]):
                 flash('Asset Tag, Service Tag, and Manufacturer are required', 'danger')
                 return redirect(url_for('assets.edit_asset', asset_id=asset_id))
             
@@ -163,7 +163,7 @@ def edit_asset(asset_id):
         flash('Failed to load asset', 'danger')
         return redirect(url_for('main.dashboard'))
 
-@assets_bp.route('/delete/<int:asset_id>')
+@assets_bp.route('/delete/<int:asset_id>', methods=['GET', 'DELETE'])
 def delete_asset(asset_id):
     try:
         db = get_db()
@@ -172,6 +172,8 @@ def delete_asset(asset_id):
         # First check if asset exists
         cursor.execute("SELECT 1 FROM assets WHERE id = ?", (asset_id,))
         if not cursor.fetchone():
+            if request.method == 'DELETE':
+                return jsonify({'success': False, 'message': 'Asset not found'}), 404
             flash('Asset not found', 'danger')
             return redirect(url_for('main.dashboard'))
             
@@ -179,12 +181,24 @@ def delete_asset(asset_id):
         cursor.execute("DELETE FROM assets WHERE id = ?", (asset_id,))
         db.commit()
         
+        if request.method == 'DELETE':
+            # Return success with stats for AJAX requests
+            from app.database import calculate_warranty_stats
+            return jsonify({
+                'success': True,
+                'message': 'Asset deleted successfully!',
+                'stats': calculate_warranty_stats()
+            })
+        
+        # For GET requests (normal browser navigation)
         flash('Asset deleted successfully!', 'success')
         return redirect(url_for('main.dashboard'))
         
     except Exception as e:
         db.rollback()
         logging.error(f"Error deleting asset {asset_id}: {str(e)}")
+        if request.method == 'DELETE':
+            return jsonify({'success': False, 'message': 'Failed to delete asset'}), 500
         flash('Failed to delete asset', 'danger')
         return redirect(url_for('main.dashboard'))
 
