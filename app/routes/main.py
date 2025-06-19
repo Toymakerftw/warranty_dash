@@ -1,5 +1,5 @@
 from flask import Blueprint, request, render_template, jsonify, make_response, current_app
-from app.database import get_db, calculate_warranty_stats, get_alert_settings, add_alert_setting, remove_alert_setting
+from app.database import get_db, calculate_warranty_stats, get_alert_settings, add_alert_setting, remove_alert_setting, get_app_setting, set_app_setting
 from datetime import datetime
 import math
 import io
@@ -112,25 +112,26 @@ def send_google_chat_message(webhook_url, message):
     except Exception as e:
         return False
 
-def send_scheduled_alerts():
-    from app.database import get_alert_settings, get_expiring_assets, get_recently_expired_assets
-    settings = get_alert_settings()
-    # Expiring soon
-    expiring = get_expiring_assets(30)
-    if expiring:
-        for s in settings:
-            if s['alert_type'] in ('all', 'warning'):
-                for item in expiring:
-                    msg = f"[Expiring Soon] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expiring soon. Action required."
-                    send_google_chat_message(s['webhook_url'], msg)
-    # Expired
-    expired = get_recently_expired_assets(30)
-    if expired:
-        for s in settings:
-            if s['alert_type'] in ('all', 'danger'):
-                for item in expired:
-                    msg = f"[Expired] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expired. Immediate attention needed."
-                    send_google_chat_message(s['webhook_url'], msg)
+def send_scheduled_alerts(app):
+    with app.app_context():
+        from app.database import get_alert_settings, get_expiring_assets, get_recently_expired_assets
+        settings = get_alert_settings()
+        # Expiring soon
+        expiring = get_expiring_assets(30)
+        if expiring:
+            for s in settings:
+                if s['alert_type'] in ('all', 'warning'):
+                    for item in expiring:
+                        msg = f"[Expiring Soon] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expiring soon. Action required."
+                        send_google_chat_message(s['webhook_url'], msg)
+        # Expired
+        expired = get_recently_expired_assets(30)
+        if expired:
+            for s in settings:
+                if s['alert_type'] in ('all', 'danger'):
+                    for item in expired:
+                        msg = f"[Expired] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expired. Immediate attention needed."
+                        send_google_chat_message(s['webhook_url'], msg)
 
 # Then define your routes
 @main_bp.route('/')
@@ -397,7 +398,8 @@ def export_alert_details():
 @main_bp.route('/alert-settings', methods=['GET'])
 def alert_settings():
     settings = get_alert_settings()
-    return render_template('alert_settings.html', settings=settings)
+    alert_cron = get_app_setting('alert_cron', current_app.config.get('ALERT_CRON', '0 8 * * *'))
+    return render_template('alert_settings.html', settings=settings, alert_cron=alert_cron)
 
 # Route to add a new alert setting
 @main_bp.route('/alert-settings/add', methods=['POST'])
@@ -426,3 +428,26 @@ def test_alert_settings():
         ok = send_google_chat_message(s['webhook_url'], message)
         results.append({'name': s['name'], 'webhook_url': s['webhook_url'], 'success': ok})
     return jsonify({'results': results})
+
+# Route to update alert cron schedule
+@main_bp.route('/alert-settings/schedule', methods=['POST'])
+def update_alert_cron():
+    cron = request.form.get('cron', '').strip()
+    if not cron or len(cron.split()) != 5:
+        return jsonify({'success': False, 'message': 'Invalid cron format. Use 5 fields: min hour day month day_of_week.'})
+    set_app_setting('alert_cron', cron)
+    current_app.config['ALERT_CRON'] = cron
+    if hasattr(current_app, 'apscheduler'):
+        try:
+            current_app.apscheduler.reschedule_job('send_scheduled_alerts',
+                trigger='cron',
+                minute=cron.split()[0],
+                hour=cron.split()[1],
+                day=cron.split()[2],
+                month=cron.split()[3],
+                day_of_week=cron.split()[4],
+            )
+            return jsonify({'success': True, 'message': f'Schedule updated to: {cron}'})
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Failed to update schedule: {e}'})
+    return jsonify({'success': False, 'message': 'Scheduler not running.'})

@@ -3,6 +3,17 @@
 {% block content %}
 <div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow mt-8">
     <h2 class="text-2xl font-bold mb-4">Alert Settings</h2>
+    <!-- Schedule Section -->
+    <div class="mb-6">
+        <h3 class="text-lg font-semibold mb-2">Alert Schedule</h3>
+        <form id="schedule-form" class="flex flex-col md:flex-row gap-2 items-center">
+            <input type="text" name="cron" id="cron-input" class="border p-2 rounded flex-1" value="{{ alert_cron }}" required>
+            <button type="submit" class="bg-primary text-white px-4 py-2 rounded hover:bg-blue-700">Update Schedule</button>
+        </form>
+        <div class="text-xs text-gray-500 mt-1">Cron format: <code>min hour day month day_of_week</code> (e.g. <code>0 8 * * *</code> for 8am daily)</div>
+        <div id="schedule-msg" class="text-sm mt-1"></div>
+    </div>
+    <!-- Add Webhook Section -->
     <form id="add-alert-form" class="mb-6">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <input type="text" name="name" placeholder="Name (e.g. IT Team)" class="border p-2 rounded" required>
@@ -47,6 +58,27 @@
 {% endblock %}
 {% block scripts %}
 <script>
+// Schedule update
+const scheduleForm = document.getElementById('schedule-form');
+scheduleForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(scheduleForm);
+    fetch('{{ url_for('main.update_alert_cron') }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('schedule-msg').textContent = data.message;
+        if (data.success) {
+            document.getElementById('schedule-msg').classList.add('text-green-600');
+            document.getElementById('schedule-msg').classList.remove('text-red-600');
+        } else {
+            document.getElementById('schedule-msg').classList.add('text-red-600');
+            document.getElementById('schedule-msg').classList.remove('text-green-600');
+        }
+    });
+});
 // Add alert setting
 const addForm = document.getElementById('add-alert-form');
 addForm.addEventListener('submit', function(e) {

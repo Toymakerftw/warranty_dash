@@ -40,6 +40,13 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now'))
     )
     ''')
+    # Add app_settings table for global settings like alert cron
+    db.execute('''
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )
+    ''')
     db.commit()
 
 def calculate_warranty_stats():
@@ -188,4 +195,21 @@ def remove_alert_setting(setting_id):
     db = get_db()
     cursor = db.cursor()
     cursor.execute("UPDATE alert_settings SET is_active = 0 WHERE id = ?", (setting_id,))
+    db.commit()
+
+# App settings helpers
+def get_app_setting(key, default=None):
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    return row['value'] if row else default
+
+def set_app_setting(key, value):
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute(
+        """INSERT INTO app_settings (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (key, value)
+    )
     db.commit()
