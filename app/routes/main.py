@@ -1,4 +1,4 @@
-from flask import Blueprint, request, render_template, jsonify, make_response, current_app
+from flask import Blueprint, request, render_template, jsonify, make_response, current_app, url_for
 from app.database import get_db, calculate_warranty_stats, get_alert_settings, add_alert_setting, remove_alert_setting, get_app_setting, set_app_setting
 from datetime import datetime
 import math
@@ -6,6 +6,8 @@ import io
 import csv
 import requests
 import logging
+import time
+import urllib.parse
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -15,7 +17,6 @@ main_bp = Blueprint('main', __name__)
 
 ITEMS_PER_PAGE = 10  # Number of items to show per page
 
-# Then define your helper functions
 def get_expiring_assets(days=30):
     """Get assets expiring within the next X days"""
     try:
@@ -92,7 +93,7 @@ def generate_alerts():
                 'manufacturer': item['manufacturer'],
                 'model': item['model'],
                 'days': 30,
-                'count': item['count']  # Add count for badge
+                'count': item['count']
             })
         
         # Recently expired alerts
@@ -106,7 +107,7 @@ def generate_alerts():
                 'manufacturer': item['manufacturer'],
                 'model': item['model'],
                 'days': 30,
-                'count': item['count']  # Add count for badge
+                'count': item['count']
             })
         
         # Newly added assets
@@ -120,29 +121,140 @@ def generate_alerts():
                 'manufacturer': item['manufacturer'],
                 'model': item['model'],
                 'days': 7,
-                'count': item['count']  # Add count for badge
+                'count': item['count']
             })
         
         logger.info(f"Generated {len(alerts)} alerts")
-        return alerts[:3]  # Return top 3 most important alerts
+        return alerts[:3]
     except Exception as e:
         logger.error(f"Error generating alerts: {str(e)}")
         return []
 
-# Utility to send a message to a Google Chat webhook
-def send_google_chat_message(webhook_url, message):
+def build_alert_card(alert_type, item, days):
+    """Build a Google Chat card for an alert"""
+    # Default values
+    title = "Warranty Alert"
+    subtitle = "Asset warranty notification"
+    color = "#4285F4"  # Blue
+    icon = "https://cdn-icons-png.flaticon.com/512/3524/3524388.png"  # Info icon
+    
+    # Customize based on alert type
+    if alert_type == 'warning':
+        title = "Warranty Expiring Soon"
+        subtitle = f"{item['count']} {item['manufacturer']} {item['model'] or 'devices'} expiring in {days} days"
+        color = "#F4B400"  # Yellow
+        icon = "https://cdn-icons-png.flaticon.com/512/2088/2088617.png"  # Warning icon
+    elif alert_type == 'danger':
+        title = "Warranty Expired"
+        subtitle = f"{item['count']} {item['manufacturer']} {item['model'] or 'devices'} expired"
+        color = "#EA4335"  # Red
+        icon = "https://cdn-icons-png.flaticon.com/512/564/564619.png"  # Error icon
+    elif alert_type == 'info':
+        title = "New Assets Added"
+        subtitle = f"{item['count']} new {item['manufacturer']} {item['model'] or 'devices'} added"
+        color = "#4285F4"  # Blue
+        icon = "https://cdn-icons-png.flaticon.com/512/3524/3524388.png"  # Info icon
+    
+    # Encode parameters for export URL
+    export_params = urllib.parse.urlencode({
+        'type': alert_type,
+        'manufacturer': item['manufacturer'],
+        'model': item['model'] or '',
+        'days': days
+    })
+    
+    # Build URLs without url_for
+    dashboard_url = f"{current_app.config['APP_BASE_URL']}/"
+    export_url = f"{current_app.config['APP_BASE_URL']}/alerts/export?{export_params}"
+    
+    # Build card structure
+    return {
+        "cardsV2": [{
+            "cardId": f"alert-{int(time.time())}",
+            "card": {
+                "header": {
+                    "title": title,
+                    "subtitle": subtitle,
+                    "imageUrl": icon,
+                    "imageType": "CIRCLE",
+                    "imageAltText": "Alert Icon"
+                },
+                "sections": [{
+                    "collapsible": False,
+                    "widgets": [
+                        {
+                            "decoratedText": {
+                                "text": f"<b>Manufacturer:</b> {item['manufacturer']}",
+                                "wrapText": True
+                            }
+                        },
+                        {
+                            "decoratedText": {
+                                "text": f"<b>Model:</b> {item['model'] or 'N/A'}",
+                                "wrapText": True
+                            }
+                        },
+                        {
+                            "decoratedText": {
+                                "text": f"<b>Count:</b> {item['count']} assets",
+                                "wrapText": True
+                            }
+                        },
+                        {
+                            "decoratedText": {
+                                "text": f"<b>Status:</b> {'Expiring Soon' if alert_type == 'warning' else 'Expired' if alert_type == 'danger' else 'New'}",
+                                "wrapText": True
+                            }
+                        },
+                        {
+                            "buttonList": {
+                                "buttons": [
+                                    {
+                                        "text": "VIEW IN DASHBOARD",
+                                        "onClick": {
+                                            "openLink": {
+                                                "url": dashboard_url
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "text": "EXPORT DETAILS",
+                                        "onClick": {
+                                            "openLink": {
+                                                "url": export_url
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }],
+                "sectionDividerStyle": "SOLID_DIVIDER"
+            }
+        }]
+    }
+
+def send_google_chat_card(webhook_url, card_data):
     headers = {'Content-Type': 'application/json; charset=UTF-8'}
-    data = {"text": message}
     try:
-        response = requests.post(webhook_url, json=data, headers=headers, timeout=5)
+        response = requests.post(
+            webhook_url, 
+            json=card_data, 
+            headers=headers, 
+            timeout=10
+        )
         if response.status_code == 200:
-            logger.info(f"Sent Google Chat message to {webhook_url}")
+            logger.info(f"Sent Google Chat card to {webhook_url}")
             return True
         else:
-            logger.warning(f"Failed to send Google Chat message to {webhook_url}: Status {response.status_code}")
+            logger.warning(
+                f"Failed to send Google Chat card to {webhook_url}: "
+                f"Status {response.status_code}, Response: {response.text}"
+            )
             return False
     except Exception as e:
-        logger.error(f"Error sending Google Chat message to {webhook_url}: {str(e)}")
+        logger.error(f"Error sending Google Chat card to {webhook_url}: {str(e)}")
         return False
 
 def send_scheduled_alerts(app):
@@ -151,29 +263,28 @@ def send_scheduled_alerts(app):
             from app.database import get_alert_settings, get_expiring_assets, get_recently_expired_assets
             settings = get_alert_settings()
             
-            # Expiring soon
+            # Expiring soon alerts
             expiring = get_expiring_assets(30)
             if expiring:
                 for s in settings:
                     if s['alert_type'] in ('all', 'warning'):
                         for item in expiring:
-                            msg = f"[Expiring Soon] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expiring soon. Action required."
-                            send_google_chat_message(s['webhook_url'], msg)
+                            card = build_alert_card('warning', item, 30)
+                            send_google_chat_card(s['webhook_url'], card)
             
-            # Expired
+            # Expired alerts
             expired = get_recently_expired_assets(30)
             if expired:
                 for s in settings:
                     if s['alert_type'] in ('all', 'danger'):
                         for item in expired:
-                            msg = f"[Expired] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expired. Immediate attention needed."
-                            send_google_chat_message(s['webhook_url'], msg)
+                            card = build_alert_card('danger', item, 30)
+                            send_google_chat_card(s['webhook_url'], card)
             
-            logger.info("Scheduled alerts sent successfully")
+            logger.info("Scheduled card alerts sent successfully")
         except Exception as e:
-            logger.error(f"Error sending scheduled alerts: {str(e)}")
+            logger.error(f"Error sending scheduled card alerts: {str(e)}")
 
-# Then define your routes
 @main_bp.route('/')
 def dashboard():
     try:
@@ -181,20 +292,15 @@ def dashboard():
         db = get_db()
         cursor = db.cursor()
         
-        # Calculate warranty stats
         stats = calculate_warranty_stats()
-        
-        # Generate recent alerts
         alerts = generate_alerts()
         
-        # Get filter parameters from request
         status_filter = request.args.get('status', 'all')
         manufacturer_filter = request.args.get('manufacturer', 'all')
         page = int(request.args.get('page', 1))
         
         logger.debug(f"Dashboard filters - Status: {status_filter}, Manufacturer: {manufacturer_filter}, Page: {page}")
         
-        # Build the base query for assets
         base_query = """
             SELECT 
                 *,
@@ -213,7 +319,6 @@ def dashboard():
         where_clauses = []
         params = []
         
-        # Add status filter if specified
         if status_filter != 'all':
             if status_filter == 'Active':
                 where_clauses.append("warranty_end_date > date('now', '+90 days')")
@@ -222,33 +327,26 @@ def dashboard():
             elif status_filter == 'Expired':
                 where_clauses.append("warranty_end_date < date('now')")
         
-        # Add manufacturer filter if specified
         if manufacturer_filter != 'all':
             where_clauses.append("manufacturer = ?")
             params.append(manufacturer_filter)
         
-        # Combine filters
         if where_clauses:
             base_query += " WHERE " + " AND ".join(where_clauses)
         
-        # Get total count for pagination
         count_query = "SELECT COUNT(*) FROM (" + base_query + ")"
         cursor.execute(count_query, tuple(params))
         total_items = cursor.fetchone()[0]
         
-        # Calculate pagination values
         total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
         offset = (page - 1) * ITEMS_PER_PAGE
         
-        # Add sorting, limiting and pagination
         base_query += " ORDER BY warranty_end_date DESC LIMIT ? OFFSET ?"
         params.extend([ITEMS_PER_PAGE, offset])
         
-        # Execute the query
         cursor.execute(base_query, tuple(params))
         assets = cursor.fetchall()
         
-        # Get manufacturer distribution for filter dropdown
         cursor.execute("""
             SELECT manufacturer, COUNT(*) as count 
             FROM assets 
@@ -258,7 +356,6 @@ def dashboard():
         """)
         manufacturers = cursor.fetchall()
         
-        # Handle AJAX requests
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             logger.debug("Dashboard AJAX request handled")
             return jsonify({
@@ -327,32 +424,27 @@ def alert_details():
         
         params = []
         
-        # Add filters based on alert type
-        if alert_type == 'warning':  # Expiring soon
+        if alert_type == 'warning':
             base_query += " AND warranty_end_date BETWEEN date('now') AND date('now', ?)"
             params.append(f"+{days} days")
-        elif alert_type == 'danger':  # Expired
+        elif alert_type == 'danger':
             base_query += " AND warranty_end_date BETWEEN date('now', ?) AND date('now')"
             params.append(f"-{days} days")
-        elif alert_type == 'info':  # Newly added
+        elif alert_type == 'info':
             base_query += " AND DATE(created_at) > date('now', ?)"
             params.append(f"-{days} days")
         
-        # Add manufacturer filter
         if manufacturer:
             base_query += " AND manufacturer = ?"
             params.append(manufacturer)
         
-        # Add model filter
         if model:
             base_query += " AND model = ?"
             params.append(model)
         
-        # Execute the query
         cursor.execute(base_query, tuple(params))
         assets = cursor.fetchall()
         
-        # Get total count without LIMIT
         count_query = "SELECT COUNT(*) FROM (" + base_query + ")"
         cursor.execute(count_query, tuple(params))
         total_count = cursor.fetchone()[0]
@@ -388,54 +480,47 @@ def export_alert_details():
                 model,
                 warranty_end_date,
                 CASE 
-                WHEN warranty_end_date < date('now') THEN 'Expired'
-                WHEN warranty_end_date BETWEEN date('now') AND date('now', '+90 days') THEN 'Expiring Soon'
-                ELSE 'Active'
-            END as status,
-            CASE
-                WHEN warranty_end_date < date('now') THEN 0
-                ELSE CAST(julianday(warranty_end_date) - julianday('now') AS INTEGER)
-            END as days_until_expiry
+                    WHEN warranty_end_date < date('now') THEN 'Expired'
+                    WHEN warranty_end_date BETWEEN date('now') AND date('now', '+90 days') THEN 'Expiring Soon'
+                    ELSE 'Active'
+                END as status,
+                CASE
+                    WHEN warranty_end_date < date('now') THEN 0
+                    ELSE CAST(julianday(warranty_end_date) - julianday('now') AS INTEGER)
+                END as days_until_expiry
             FROM assets
             WHERE 1=1
         """
         
         params = []
         
-        # Add filters based on alert type
-        if alert_type == 'warning':  # Expiring soon
+        if alert_type == 'warning':
             base_query += " AND warranty_end_date BETWEEN date('now') AND date('now', ?)"
             params.append(f"+{days} days")
-        elif alert_type == 'danger':  # Expired
+        elif alert_type == 'danger':
             base_query += " AND warranty_end_date BETWEEN date('now', ?) AND date('now')"
             params.append(f"-{days} days")
-        elif alert_type == 'info':  # Newly added
+        elif alert_type == 'info':
             base_query += " AND DATE(created_at) > date('now', ?)"
             params.append(f"-{days} days")
         
-        # Add manufacturer filter
         if manufacturer:
             base_query += " AND manufacturer = ?"
             params.append(manufacturer)
         
-        # Add model filter
         if model:
             base_query += " AND model = ?"
             params.append(model)
         
-        # Execute the query
         cursor.execute(base_query, tuple(params))
         assets = cursor.fetchall()
         
-        # Create CSV output
         output = io.StringIO()
         writer = csv.writer(output)
         
-        # Write header
         writer.writerow(['Asset Tag', 'Serial', 'Manufacturer', 'Model', 
                         'Warranty End Date', 'Status', 'Days Remaining'])
         
-        # Write data
         for asset in assets:
             writer.writerow([
                 asset['asset_tag'],
@@ -449,7 +534,6 @@ def export_alert_details():
         
         logger.info(f"Exported {len(assets)} assets to CSV")
         
-        # Create response
         response = make_response(output.getvalue())
         response.headers['Content-Disposition'] = f'attachment; filename=alert_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
         response.headers['Content-type'] = 'text/csv'
@@ -459,7 +543,6 @@ def export_alert_details():
         logger.exception("Failed to export alert details")
         return jsonify({'error': 'Internal server error'}), 500
 
-# Route to list all alert settings
 @main_bp.route('/alert-settings', methods=['GET'])
 def alert_settings():
     try:
@@ -471,7 +554,6 @@ def alert_settings():
         logger.exception("Error loading alert settings")
         return render_template('error.html', message="Failed to load alert settings"), 500
 
-# Route to add a new alert setting
 @main_bp.route('/alert-settings/add', methods=['POST'])
 def add_alert_setting_route():
     try:
@@ -490,7 +572,6 @@ def add_alert_setting_route():
         logger.exception("Failed to add alert setting")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
-# Route to remove an alert setting
 @main_bp.route('/alert-settings/remove/<int:setting_id>', methods=['POST'])
 def remove_alert_setting_route(setting_id):
     try:
@@ -501,7 +582,6 @@ def remove_alert_setting_route(setting_id):
         logger.exception(f"Failed to remove alert setting {setting_id}")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
-# Route to send a test alert to all webhooks
 @main_bp.route('/alert-settings/test', methods=['POST'])
 def test_alert_settings():
     try:
@@ -513,17 +593,46 @@ def test_alert_settings():
             logger.warning("Test alert failed: No active alert settings")
             return jsonify({'results': []})
         
-        for s in settings:
-            ok = send_google_chat_message(s['webhook_url'], message)
-            results.append({'name': s['name'], 'webhook_url': s['webhook_url'], 'success': ok})
+        # Create a test card
+        test_item = {
+            'manufacturer': 'Test Manufacturer',
+            'model': 'Test Model',
+            'count': 5
+        }
+        test_card = build_alert_card('info', test_item, 7)
+        test_card['cardsV2'][0]['card']['header']['title'] = "Test Alert"
+        test_card['cardsV2'][0]['card']['header']['subtitle'] = "This is a test notification"
         
-        logger.info(f"Test alerts sent to {len(settings)} webhooks")
+        # Add custom message to card
+        test_card['cardsV2'][0]['card']['sections'][0]['widgets'].insert(0, {
+            "decoratedText": {
+                "text": f"<b>Test Message:</b> {message}",
+                "wrapText": True
+            }
+        })
+        
+        for s in settings:
+            try:
+                ok = send_google_chat_card(s['webhook_url'], test_card)
+                results.append({
+                    'name': s['name'], 
+                    'webhook_url': s['webhook_url'], 
+                    'success': ok
+                })
+            except Exception as e:
+                logger.error(f"Error sending test to {s['webhook_url']}: {str(e)}")
+                results.append({
+                    'name': s['name'], 
+                    'webhook_url': s['webhook_url'], 
+                    'success': False
+                })
+        
+        logger.info(f"Test card alerts sent to {len(settings)} webhooks")
         return jsonify({'results': results})
     except Exception as e:
         logger.exception("Failed to send test alerts")
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-# Route to update alert cron schedule
 @main_bp.route('/alert-settings/schedule', methods=['POST'])
 def update_alert_cron():
     try:

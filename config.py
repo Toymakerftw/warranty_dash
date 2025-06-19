@@ -7,6 +7,9 @@ class Config:
     DEBUG = True
     ALERT_CRON = os.environ.get('ALERT_CRON', '0 8 * * *')  # Default: every day at 8am
     
+    # Add base URL for card links
+    APP_BASE_URL = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
+
     # Logging configuration
     LOG_LEVEL = logging.INFO
     LOG_FILE = 'warranty_track.log'

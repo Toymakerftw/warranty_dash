@@ -79,6 +79,7 @@ scheduleForm.addEventListener('submit', function(e) {
         }
     });
 });
+
 // Add alert setting
 const addForm = document.getElementById('add-alert-form');
 addForm.addEventListener('submit', function(e) {
@@ -97,6 +98,7 @@ addForm.addEventListener('submit', function(e) {
         }
     });
 });
+
 // Remove alert setting
 const removeBtns = document.querySelectorAll('.remove-btn');
 removeBtns.forEach(btn => {
@@ -116,23 +118,49 @@ removeBtns.forEach(btn => {
         }
     });
 });
-// Test alert
+
+// Test alert with enhanced error handling
 const testForm = document.getElementById('test-alert-form');
 testForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const formData = new FormData(testForm);
+    
+    // Clear previous results
+    document.getElementById('test-results').innerHTML = '<div class="text-gray-500">Sending tests...</div>';
+    
     fetch('{{ url_for('main.test_alert_settings') }}', {
         method: 'POST',
         body: formData
     })
-    .then(r => r.json())
+    .then(response => {
+        if (!response.ok) {
+            // If server returns an error, try to parse the JSON error
+            return response.json().then(error => {
+                throw new Error(error.message || 'Server returned an error');
+            }).catch(() => {
+                throw new Error('Server error: ' + response.status);
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         let html = '';
-        data.results.forEach(r => {
-            html += `<div>${r.name}: <span class='${r.success ? 'text-green-600' : 'text-red-600'}'>${r.success ? 'Success' : 'Failed'}</span></div>`;
-        });
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(r => {
+                html += `<div>${r.name}: <span class='${r.success ? 'text-green-600' : 'text-red-600'}'>${r.success ? 'Success' : 'Failed'}</span></div>`;
+            });
+        } else {
+            html = '<div class="text-red-600">No active webhooks to test</div>';
+        }
         document.getElementById('test-results').innerHTML = html;
+    })
+    .catch(error => {
+        console.error('Test alert error:', error);
+        document.getElementById('test-results').innerHTML = `
+            <div class="text-red-600">Error: ${error.message}</div>
+            <div class="text-xs text-gray-500">Check console for details</div>
+        `;
     });
 });
 </script>
-{% endblock %} 
+{% endblock %}
