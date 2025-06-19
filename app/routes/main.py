@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template, request, jsonify
-from app.database import get_db
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from app.database import get_db, search_assets 
 import math
 from .stats import calculate_warranty_stats, get_expiring_assets, get_recently_expired_assets, get_recently_added_assets
 from .alerts import generate_alerts
@@ -116,3 +116,58 @@ def dashboard():
     except Exception as e:
         logger.exception("Error loading dashboard")
         return render_template('error.html', message="Failed to load dashboard"), 500
+    
+@main_bp.route('/search')
+def search():
+    try:
+        logger.info("Search accessed")
+        query = request.args.get('q', '').strip()
+        
+        # Validate search input
+        if not query:
+            flash('Please enter a search term', 'info')
+            return redirect(url_for('main.dashboard'))
+        
+        # Sanitize input - remove any potentially dangerous characters
+        import re
+        sanitized_query = re.sub(r'[^\w\s\-\@\.\#]', '', query)
+        if sanitized_query != query:
+            logger.warning(f"Sanitized search query: '{query}' -> '{sanitized_query}'")
+            query = sanitized_query
+            flash('Removed invalid characters from search term', 'warning')
+        
+        # Limit query length
+        if len(query) > 100:
+            query = query[:100]
+            flash('Search term was truncated to 100 characters', 'warning')
+        
+        # Handle page number safely
+        try:
+            page = int(request.args.get('page', 1))
+        except ValueError:
+            page = 1
+        
+        # Prevent negative page numbers
+        if page < 1:
+            page = 1
+        
+        # Get search results
+        assets, total_items = search_assets(query, page, ITEMS_PER_PAGE)
+        
+        # Calculate pagination
+        total_pages = max(1, math.ceil(total_items / ITEMS_PER_PAGE))
+        
+        logger.info(f"Search for '{query}' returned {total_items} results")
+        
+        return render_template('search_results.html', 
+                             query=query,
+                             assets=assets,
+                             pagination={
+                                 'page': page,
+                                 'total_pages': total_pages,
+                                 'total_items': total_items,
+                                 'items_per_page': ITEMS_PER_PAGE
+                             })
+    except Exception as e:
+        logger.exception(f"Search error: {str(e)}")
+        return render_template('error.html', message="Search failed"), 500
