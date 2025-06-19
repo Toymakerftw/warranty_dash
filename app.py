@@ -1,5 +1,5 @@
 from flask import Flask
-from app.routes import main_bp, assets_bp, export_bp, settings_bp
+from app.routes import main_bp, assets_bp, export_bp, settings_bp, alerts_bp
 from app.database import init_db, get_app_setting
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
@@ -36,6 +36,7 @@ def create_app():
     app.register_blueprint(assets_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(alerts_bp)
     
     # Initialize database and scheduler inside app context
     with app.app_context():
