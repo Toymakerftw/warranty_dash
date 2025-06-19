@@ -3,7 +3,6 @@ from flask import g, current_app
 from datetime import datetime
 import re
 import logging
-import math
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -293,72 +292,3 @@ def set_app_setting(key, value):
     except sqlite3.Error as e:
         logger.error(f"Error setting app setting {key}: {str(e)}")
         raise
-
-def search_assets(query, page=1, per_page=10):
-    try:
-        db = get_db()
-        cursor = db.cursor()
-        
-        # Sanitize query - remove wildcards that could cause performance issues
-        # We'll only allow wildcards at the end of words
-        safe_query = query.replace('%', '').replace('_', '')
-        
-        # Split into words and add wildcards only at the end
-        words = [word.strip() + '%' for word in safe_query.split() if word.strip()]
-        
-        # If no valid words remain, return empty results
-        if not words:
-            return [], 0
-        
-        # Create parameter placeholders for each word in each field
-        placeholders = []
-        params = []
-        for word in words:
-            placeholders.append(" OR ".join([
-                "asset_tag LIKE ?", 
-                "service_tag LIKE ?", 
-                "manufacturer LIKE ?", 
-                "model LIKE ?", 
-                "notes LIKE ?"
-            ]))
-            params.extend([word] * 5)  # Add the same word for each field
-        
-        where_clause = "(" + ") OR (".join(placeholders) + ")"
-        
-        # Count total matches
-        count_query = f"""
-            SELECT COUNT(*) 
-            FROM assets
-            WHERE {where_clause}
-        """
-        cursor.execute(count_query, tuple(params))
-        total_items = cursor.fetchone()[0]
-        
-        # Get paginated results
-        offset = (page - 1) * per_page
-        search_query = f"""
-            SELECT 
-                *,
-                CASE 
-                    WHEN warranty_end_date < date('now') THEN 'Expired'
-                    WHEN warranty_end_date BETWEEN date('now') AND date('now', '+90 days') THEN 'Expiring Soon'
-                    ELSE 'Active'
-                END as status,
-                CASE
-                    WHEN warranty_end_date < date('now') THEN 0
-                    ELSE CAST(julianday(warranty_end_date) - julianday('now') AS INTEGER)
-                END as days_until_expiry
-            FROM assets
-            WHERE {where_clause}
-            ORDER BY warranty_end_date DESC
-            LIMIT ? OFFSET ?
-        """
-        cursor.execute(search_query, tuple(params + [per_page, offset]))
-        assets = cursor.fetchall()
-        
-        logger.debug(f"Search found {len(assets)} assets for query '{query}'")
-        return assets, total_items
-        
-    except sqlite3.Error as e:
-        logger.error(f"Search error: {str(e)}")
-        return [], 0

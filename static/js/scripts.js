@@ -36,31 +36,4 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 300);
         });
     });
-        const searchForm = document.querySelector('form[action*="/search"]');
-    if (searchForm) {
-        searchForm.addEventListener('submit', function(e) {
-            const searchInput = this.querySelector('input[name="q"]');
-            const value = searchInput.value.trim();
-            
-            // Validate input
-            const regex = /^[a-zA-Z0-9\s\-\@\.\#]+$/;
-            
-            if (!value) {
-                e.preventDefault();
-                alert('Please enter a search term');
-                return false;
-            }
-            
-            if (!regex.test(value)) {
-                e.preventDefault();
-                alert('Only letters, numbers, spaces, and - . @ # are allowed');
-                return false;
-            }
-            
-            if (value.length > 100) {
-                searchInput.value = value.substring(0, 100);
-                alert('Search term was truncated to 100 characters');
-            }
-        });
-    }
 });

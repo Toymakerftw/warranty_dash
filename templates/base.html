@@ -68,10 +68,8 @@
                             <i class="fas fa-bars text-xl"></i>
                         </button>
                         <div class="relative mx-4">
-                            <form class="flex" action="{{ url_for('main.search') }}" method="GET">
-                                <input class="px-4 py-2 border rounded-l focus:outline-none focus:ring-2 focus:ring-primary" type="search" placeholder="Search assets..." aria-label="Search" name="q" value="{{ request.args.get('q', '') }}" maxlength="100" pattern="[a-zA-Z0-9\s\-\.\@\#]+" title="Only letters, numbers, spaces, and - . @ # are allowed">
-                                <button class="px-4 py-2 bg-primary text-white rounded-r hover:bg-opacity-90 transition duration-200" type="submit">Search</button>
-                            </form>
+                            <input type="text" placeholder="Search assets..." class="pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
