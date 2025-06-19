@@ -29,6 +29,17 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now'))
     )
     ''')
+    # Add alert_settings table for storing webhook URLs and alert preferences
+    db.execute('''
+    CREATE TABLE IF NOT EXISTS alert_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        webhook_url TEXT,
+        alert_type TEXT,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT DEFAULT (datetime('now'))
+    )
+    ''')
     db.commit()
 
 def calculate_warranty_stats():
@@ -155,3 +166,26 @@ def normalize_date(date_str):
     
     # If all parsing fails, return None
     return None
+
+# Alert settings helpers
+def get_alert_settings():
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM alert_settings WHERE is_active = 1")
+    return cursor.fetchall()
+
+def add_alert_setting(name, webhook_url, alert_type):
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute(
+        "INSERT INTO alert_settings (name, webhook_url, alert_type, is_active) VALUES (?, ?, ?, 1)",
+        (name, webhook_url, alert_type)
+    )
+    db.commit()
+    return cursor.lastrowid
+
+def remove_alert_setting(setting_id):
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("UPDATE alert_settings SET is_active = 0 WHERE id = ?", (setting_id,))
+    db.commit()

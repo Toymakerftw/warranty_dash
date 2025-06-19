@@ -1,9 +1,10 @@
-from flask import Blueprint, request, render_template, jsonify, make_response
-from app.database import get_db, calculate_warranty_stats
+from flask import Blueprint, request, render_template, jsonify, make_response, current_app
+from app.database import get_db, calculate_warranty_stats, get_alert_settings, add_alert_setting, remove_alert_setting
 from datetime import datetime
 import math
 import io
 import csv
+import requests
 
 # First define the Blueprint
 main_bp = Blueprint('main', __name__)
@@ -100,6 +101,36 @@ def generate_alerts():
         })
     
     return alerts[:3]  # Return top 3 most important alerts
+
+# Utility to send a message to a Google Chat webhook
+def send_google_chat_message(webhook_url, message):
+    headers = {'Content-Type': 'application/json; charset=UTF-8'}
+    data = {"text": message}
+    try:
+        response = requests.post(webhook_url, json=data, headers=headers, timeout=5)
+        return response.status_code == 200
+    except Exception as e:
+        return False
+
+def send_scheduled_alerts():
+    from app.database import get_alert_settings, get_expiring_assets, get_recently_expired_assets
+    settings = get_alert_settings()
+    # Expiring soon
+    expiring = get_expiring_assets(30)
+    if expiring:
+        for s in settings:
+            if s['alert_type'] in ('all', 'warning'):
+                for item in expiring:
+                    msg = f"[Expiring Soon] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expiring soon. Action required."
+                    send_google_chat_message(s['webhook_url'], msg)
+    # Expired
+    expired = get_recently_expired_assets(30)
+    if expired:
+        for s in settings:
+            if s['alert_type'] in ('all', 'danger'):
+                for item in expired:
+                    msg = f"[Expired] {item['manufacturer']} {item['model'] or ''} ({item['count']}) warranties expired. Immediate attention needed."
+                    send_google_chat_message(s['webhook_url'], msg)
 
 # Then define your routes
 @main_bp.route('/')
@@ -361,3 +392,37 @@ def export_alert_details():
     response.headers['Content-type'] = 'text/csv'
     
     return response
+
+# Route to list all alert settings
+@main_bp.route('/alert-settings', methods=['GET'])
+def alert_settings():
+    settings = get_alert_settings()
+    return render_template('alert_settings.html', settings=settings)
+
+# Route to add a new alert setting
+@main_bp.route('/alert-settings/add', methods=['POST'])
+def add_alert_setting_route():
+    name = request.form.get('name')
+    webhook_url = request.form.get('webhook_url')
+    alert_type = request.form.get('alert_type')
+    if not (name and webhook_url and alert_type):
+        return jsonify({'success': False, 'message': 'All fields are required.'}), 400
+    add_alert_setting(name, webhook_url, alert_type)
+    return jsonify({'success': True, 'message': 'Alert setting added.'})
+
+# Route to remove an alert setting
+@main_bp.route('/alert-settings/remove/<int:setting_id>', methods=['POST'])
+def remove_alert_setting_route(setting_id):
+    remove_alert_setting(setting_id)
+    return jsonify({'success': True, 'message': 'Alert setting removed.'})
+
+# Route to send a test alert to all webhooks
+@main_bp.route('/alert-settings/test', methods=['POST'])
+def test_alert_settings():
+    message = request.form.get('message', 'This is a test alert from WarrantyTrack.')
+    settings = get_alert_settings()
+    results = []
+    for s in settings:
+        ok = send_google_chat_message(s['webhook_url'], message)
+        results.append({'name': s['name'], 'webhook_url': s['webhook_url'], 'success': ok})
+    return jsonify({'results': results})
