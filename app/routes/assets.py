@@ -5,6 +5,9 @@ from io import TextIOWrapper
 import logging
 from datetime import datetime
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+
 assets_bp = Blueprint('assets', __name__, url_prefix='/assets')
 
 @assets_bp.route('/upload', methods=['GET', 'POST'])
@@ -13,6 +16,7 @@ def upload_csv():
         file = request.files['csv_file']
         if file and (file.filename.endswith('.csv') or file.filename.endswith('.txt')):
             try:
+                logger.info(f"CSV upload started: {file.filename}")
                 # Parse CSV data with error handling
                 csv_file = TextIOWrapper(file.stream, encoding='utf-8', errors='replace')
                 reader = csv.DictReader(csv_file)
@@ -43,7 +47,7 @@ def upload_csv():
                         # Validate required fields
                         if not asset_tag or not service_tag or not manufacturer:
                             errors += 1
-                            logging.warning(f"Row {row_num}: Missing required fields - {row}")
+                            logger.warning(f"Row {row_num}: Missing required fields - {row}")
                             continue
                             
                         # Insert into database with created_at timestamp
@@ -67,30 +71,33 @@ def upload_csv():
                         
                     except Exception as e:
                         errors += 1
-                        logging.error(f"Error processing row {row_num}: {str(e)} - Data: {row}")
+                        logger.error(f"Error processing row {row_num}: {str(e)} - Data: {row}")
                 
                 db.commit()
                 
                 # Prepare feedback message
                 if count == 0:
                     flash('No valid assets were imported', 'danger')
+                    logger.warning("CSV upload completed with no valid assets")
                 elif errors == 0:
                     flash(f'Successfully imported {count} assets', 'success')
+                    logger.info(f"CSV upload completed: {count} assets imported")
                 else:
-                    flash(
-                        f'Imported {count} assets with {errors} errors and {skipped} empty rows skipped', 
-                        'warning' if count > 0 else 'danger'
-                    )
+                    message = f'Imported {count} assets with {errors} errors and {skipped} empty rows skipped'
+                    flash(message, 'warning' if count > 0 else 'danger')
+                    logger.warning(message)
                 
                 return redirect(url_for('main.dashboard'))
                 
             except Exception as e:
                 db.rollback()
-                logging.error(f"CSV processing failed: {str(e)}")
+                logger.exception(f"CSV processing failed: {str(e)}")
                 flash('Failed to process CSV file. Please check the format.', 'danger')
         else:
+            logger.warning("Invalid file type uploaded")
             flash('Please upload a valid CSV or TXT file', 'danger')
     
+    logger.debug("CSV upload page accessed")
     return render_template('upload.html')
 
 @assets_bp.route('/edit/<int:asset_id>', methods=['GET', 'POST'])
@@ -100,6 +107,7 @@ def edit_asset(asset_id):
     
     if request.method == 'POST':
         try:
+            logger.info(f"Editing asset: ID={asset_id}")
             # Get form data
             form_data = {
                 'asset_tag': request.form['asset_tag'].strip(),
@@ -114,6 +122,7 @@ def edit_asset(asset_id):
             # Validate required fields
             if not all([form_data['asset_tag'], form_data['service_tag'], form_data['manufacturer']]):
                 flash('Asset Tag, Service Tag, and Manufacturer are required', 'danger')
+                logger.warning(f"Edit asset failed: Missing required fields for asset {asset_id}")
                 return redirect(url_for('assets.edit_asset', asset_id=asset_id))
             
             # Update asset in database (preserve created_at)
@@ -140,33 +149,37 @@ def edit_asset(asset_id):
             db.commit()
             
             flash('Asset updated successfully!', 'success')
+            logger.info(f"Asset updated: ID={asset_id}")
             return redirect(url_for('main.dashboard'))
             
         except Exception as e:
             db.rollback()
-            logging.error(f"Error updating asset {asset_id}: {str(e)}")
+            logger.exception(f"Error updating asset {asset_id}: {str(e)}")
             flash('Failed to update asset', 'danger')
             return redirect(url_for('assets.edit_asset', asset_id=asset_id))
     
     # GET request - show edit form
     try:
+        logger.debug(f"Edit asset page accessed: ID={asset_id}")
         cursor.execute("SELECT * FROM assets WHERE id = ?", (asset_id,))
         asset = cursor.fetchone()
         
         if not asset:
             flash('Asset not found', 'danger')
+            logger.warning(f"Asset not found: ID={asset_id}")
             return redirect(url_for('main.dashboard'))
             
         return render_template('edit_asset.html', asset=asset)
         
     except Exception as e:
-        logging.error(f"Error fetching asset {asset_id}: {str(e)}")
+        logger.exception(f"Error fetching asset {asset_id}: {str(e)}")
         flash('Failed to load asset', 'danger')
         return redirect(url_for('main.dashboard'))
 
 @assets_bp.route('/delete/<int:asset_id>', methods=['GET', 'DELETE'])
 def delete_asset(asset_id):
     try:
+        logger.info(f"Deleting asset: ID={asset_id}")
         db = get_db()
         cursor = db.cursor()
         
@@ -174,6 +187,7 @@ def delete_asset(asset_id):
         cursor.execute("SELECT 1 FROM assets WHERE id = ?", (asset_id,))
         if not cursor.fetchone():
             if request.method == 'DELETE':
+                logger.warning(f"Delete failed: Asset not found - ID={asset_id}")
                 return jsonify({'success': False, 'message': 'Asset not found'}), 404
             flash('Asset not found', 'danger')
             return redirect(url_for('main.dashboard'))
@@ -185,6 +199,7 @@ def delete_asset(asset_id):
         if request.method == 'DELETE':
             # Return success with stats for AJAX requests
             from app.database import calculate_warranty_stats
+            logger.info(f"Asset deleted: ID={asset_id}")
             return jsonify({
                 'success': True,
                 'message': 'Asset deleted successfully!',
@@ -197,7 +212,7 @@ def delete_asset(asset_id):
         
     except Exception as e:
         db.rollback()
-        logging.error(f"Error deleting asset {asset_id}: {str(e)}")
+        logger.exception(f"Error deleting asset {asset_id}: {str(e)}")
         if request.method == 'DELETE':
             return jsonify({'success': False, 'message': 'Failed to delete asset'}), 500
         flash('Failed to delete asset', 'danger')

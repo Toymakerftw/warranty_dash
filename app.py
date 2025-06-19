@@ -3,10 +3,33 @@ from app.routes import main_bp, assets_bp
 from app.database import init_db, get_app_setting
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
+import logging
+from logging.handlers import RotatingFileHandler
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object('config.Config')
+    
+    # Configure logging
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+    )
+    file_handler = RotatingFileHandler(
+        app.config['LOG_FILE'],
+        maxBytes=app.config['LOG_MAX_BYTES'],
+        backupCount=app.config['LOG_BACKUP_COUNT']
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(app.config['LOG_LEVEL'])
+    
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(logging.DEBUG if app.config['DEBUG'] else logging.INFO)
+    
+    app.logger.addHandler(file_handler)
+    app.logger.addHandler(stream_handler)
+    app.logger.setLevel(logging.DEBUG)
+    app.logger.info('WarrantyTrack startup')
     
     # Register blueprints
     app.register_blueprint(main_bp)
