@@ -1,0 +1,738 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Asset Warranty{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+    <div>
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Warranty Dashboard</h1>
+        <p class="text-gray-600">Track and manage warranty information for your <span class="stats-total">{{ stats.total_assets }}</span>+ assets</p>
+    </div>
+    <div class="flex space-x-3 mt-4 md:mt-0">
+        <button onclick="refreshData()" class="bg-primary hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh Data
+        </button>
+        <a href="{{ url_for('assets.upload_csv') }}" class="bg-success hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center">
+            <i class="fas fa-file-import mr-2"></i> Import
+        </a>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-full text-primary mr-4">
+                <i class="fas fa-laptop fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Total Assets</p>
+                <h3 class="text-2xl font-bold stats-total">{{ stats.total_assets }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-orange-100 rounded-full text-orange-500 mr-4">
+                <i class="fas fa-clock fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Expiring Soon</p>
+                <h3 class="text-2xl font-bold stats-expiring">{{ stats.expiring_soon }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-red-100 rounded-full text-danger mr-4">
+                <i class="fas fa-exclamation-triangle fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Expired</p>
+                <h3 class="text-2xl font-bold stats-expired">{{ stats.expired }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-full text-success mr-4">
+                <i class="fas fa-check-circle fa-lg"></i>
+            </div>
+            <div>
+                <p class="text-gray-500">Active Warranty</p>
+                <h3 class="text-2xl font-bold stats-active">{{ stats.active }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts and Main Content -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- Warranty Status Chart -->
+    <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
+        <h2 class="text-lg font-semibold mb-4">Warranty Status</h2>
+        <div class="chart-container">
+            <canvas id="warrantyChart" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Manufacturer Distribution -->
+    <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
+        <h2 class="text-lg font-semibold mb-4">Manufacturers</h2>
+        <div class="chart-container">
+            <canvas id="manufacturerChart" height="300"></canvas>
+        </div>
+    </div>
+
+<!-- Recent Alerts -->
+<div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-semibold">Recent Alerts</h2>
+        <button onclick="refreshAlerts()" class="text-gray-500 hover:text-primary">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+    <div id="alerts-container" class="space-y-3">
+        {% for alert in alerts %}
+        <div class="alert-item flex items-start p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50"
+             data-type="{{ alert.type }}"
+             data-manufacturer="{{ alert.manufacturer }}"
+             data-model="{{ alert.model or '' }}"
+             data-days="{{ alert.days }}"
+             >
+            
+            <!-- Colored icon with badge -->
+            <div class="relative mr-3">
+                <div class="flex items-center justify-center h-10 w-10 rounded-full 
+                    {% if alert.type == 'warning' %}bg-yellow-100 text-yellow-600
+                    {% elif alert.type == 'danger' %}bg-red-100 text-red-600
+                    {% else %}bg-blue-100 text-blue-600{% endif %}">
+                    <i class="fas {{ alert.icon }}"></i>
+                </div>
+                <!-- Small badge for count -->
+                <span class="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none 
+                    {% if alert.type == 'warning' %}bg-yellow-500 text-white
+                    {% elif alert.type == 'danger' %}bg-red-500 text-white
+                    {% else %}bg-blue-500 text-white{% endif %} rounded-full">
+                    {{ alert.count or '!' }}
+                </span>
+            </div>
+            
+            <!-- Alert content -->
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-900 truncate">
+                    {{ alert.title }}
+                </p>
+                <p class="text-sm text-gray-500">
+                    {{ alert.message }}
+                </p>
+                <div class="mt-1 flex items-center text-xs text-gray-500">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full 
+                        {% if alert.type == 'warning' %}bg-yellow-100 text-yellow-800
+                        {% elif alert.type == 'danger' %}bg-red-100 text-red-800
+                        {% else %}bg-blue-100 text-blue-800{% endif %}">
+                        {% if alert.type == 'warning' %}Expiring Soon
+                        {% elif alert.type == 'danger' %}Expired
+                        {% else %}New{% endif %}
+                    </span>
+                    <span class="ml-2">{{ alert.days }} days</span>
+                </div>
+            </div>
+            
+            <!-- Chevron icon -->
+            <div class="ml-2 flex-shrink-0 text-gray-400">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-gray-500">
+            <i class="fas fa-bell-slash text-2xl mb-2"></i>
+            <p>No recent alerts</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+</div>
+
+<!-- Recent Assets Table -->
+<div class="bg-white rounded-lg shadow overflow-hidden mb-6">
+    <div class="flex justify-between items-center px-6 py-4 border-b">
+        <h2 class="text-lg font-semibold">Asset Inventory</h2>
+        <div class="flex space-x-2">
+            <form id="filter-form" method="get" class="flex space-x-2">
+                <select name="manufacturer" class="border rounded-md px-3 py-1 text-sm">
+                    <option value="all">All Manufacturers</option>
+                    {% for manufacturer in manufacturers %}
+                    <option value="{{ manufacturer.manufacturer }}" 
+                        {% if current_manufacturer == manufacturer.manufacturer %}selected{% endif %}>
+                        {{ manufacturer.manufacturer }} ({{ manufacturer.count }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <select name="status" class="border rounded-md px-3 py-1 text-sm">
+                    <option value="all" {% if current_status == 'all' %}selected{% endif %}>All Status</option>
+                    <option value="Active" {% if current_status == 'Active' %}selected{% endif %}>Active</option>
+                    <option value="Expiring Soon" {% if current_status == 'Expiring Soon' %}selected{% endif %}>Expiring Soon</option>
+                    <option value="Expired" {% if current_status == 'Expired' %}selected{% endif %}>Expired</option>
+                </select>
+                <button type="submit" class="px-3 py-1 bg-primary text-white rounded-md hover:bg-blue-600 text-sm">
+                    Apply Filters
+                </button>
+                {% if current_status != 'all' or current_manufacturer != 'all' %}
+                <a href="{{ url_for('main.dashboard') }}" class="px-3 py-1 border rounded-md text-gray-700 hover:bg-gray-100 text-sm">
+                    Clear Filters
+                </a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+    
+    <!-- Table Container for AJAX updates -->
+    <div id="assets-table-container">
+        {% include '_asset_table.html' %}
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <a href="{{ url_for('assets.upload_csv') }}" class="bg-white p-4 rounded-lg shadow border-t-4 border-primary hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-blue-100 rounded-full text-primary mr-4">
+                <i class="fas fa-file-import"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Import Assets</h3>
+                <p class="text-sm text-gray-500">Upload CSV file</p>
+            </div>
+        </div>
+    </a>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-warning hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-yellow-100 rounded-full text-warning mr-4">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Set Alerts</h3>
+                <p class="text-sm text-gray-500">Configure notifications</p>
+                <a href="{{ url_for('settings.alert_settings') }}" class="mt-2 inline-block text-primary underline">Alert Settings</a>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-danger hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-red-100 rounded-full text-danger mr-4">
+                <i class="fas fa-file-pdf"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Generate Report</h3>
+                <p class="text-sm text-gray-500">Export warranty data</p>
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow border-t-4 border-success hover:shadow-md transition duration-200">
+        <div class="flex items-center">
+            <div class="p-3 bg-green-100 rounded-full text-success mr-4">
+                <i class="fas fa-search"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold">Warranty Check</h3>
+                <p class="text-sm text-gray-500">Manual lookup</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Details Modal -->
+<div id="alertModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center pb-3">
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-800"></h3>
+            <button onclick="closeModal()" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div id="modalContent" class="mt-4">
+            <div class="flex justify-center">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            </div>
+        </div>
+        
+        <div class="mt-6 flex justify-end space-x-3">
+            <button onclick="closeModal()" class="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-100">
+                Close
+            </button>
+            <button id="exportButton" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-600 hidden">
+                <i class="fas fa-file-export mr-2"></i> Export to CSV
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Initialize charts
+    let warrantyChart, manufacturerChart;
+    
+    function initCharts() {
+        // Warranty Status Chart
+        const warrantyCtx = document.getElementById('warrantyChart').getContext('2d');
+        warrantyChart = new Chart(warrantyCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Active', 'Expiring Soon', 'Expired'],
+                datasets: [{
+                    data: [{{ stats.active }}, {{ stats.expiring_soon }}, {{ stats.expired }}],
+                    backgroundColor: ['#38c172', '#ffed4a', '#e3342f'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom' }
+                },
+                cutout: '70%'
+            }
+        });
+
+        // Manufacturer Distribution Chart
+        const manufacturerCtx = document.getElementById('manufacturerChart').getContext('2d');
+        manufacturerChart = new Chart(manufacturerCtx, {
+            type: 'bar',
+            data: {
+                labels: [
+                    {% for manufacturer in manufacturers %}
+                        '{{ manufacturer.manufacturer }}',
+                    {% endfor %}
+                ],
+                datasets: [{
+                    label: 'Assets by Manufacturer',
+                    data: [
+                        {% for manufacturer in manufacturers %}
+                            {{ manufacturer.count }},
+                        {% endfor %}
+                    ],
+                    backgroundColor: [
+                        '#3490dc', '#6cb2eb', '#3d7ea8', '#2c5282', '#1a365d'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    // AJAX Delete Function
+    function deleteAsset(assetId) {
+        if (confirm('Are you sure you want to delete this asset?')) {
+            fetch(`/assets/delete/${assetId}`, {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the table row
+                    document.querySelector(`tr[data-id="${assetId}"]`).remove();
+                    
+                    // Update stats cards
+                    updateStats(data.stats);
+                    
+                    // Show success message
+                    showFlashMessage(data.message, 'success');
+                    
+                    // Refresh alerts after deletion
+                    refreshAlerts();
+                } else {
+                    showFlashMessage(data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showFlashMessage('Error deleting asset', 'danger');
+                console.error('Error:', error);
+            });
+        }
+    }
+
+    // Update stats display
+    function updateStats(stats) {
+        document.querySelector('.stats-total').textContent = stats.total_assets;
+        document.querySelector('.stats-expiring').textContent = stats.expiring_soon;
+        document.querySelector('.stats-expired').textContent = stats.expired;
+        document.querySelector('.stats-active').textContent = stats.active;
+        
+        // Update charts
+        warrantyChart.data.datasets[0].data = [
+            stats.active, 
+            stats.expiring_soon, 
+            stats.expired
+        ];
+        warrantyChart.update();
+    }
+
+    // AJAX Filter and Pagination Function
+    function applyFilters(url = null) {
+        const urlObj = url ? new URL(url) : new URL(window.location);
+        const params = urlObj.searchParams.toString();
+        
+        showLoadingIndicator();
+        
+        fetch(`${urlObj.pathname}?${params}`, {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Update table section
+            document.getElementById('assets-table-container').innerHTML = data.html;
+            
+            // Update stats
+            updateStats(data.stats);
+            
+            // Update alerts
+            updateAlerts(data.alerts);
+            
+            // Update URL without reloading
+            window.history.replaceState(null, '', urlObj.toString());
+            
+            // Reattach event listeners
+            attachDeleteListeners();
+            attachPaginationListeners();
+            attachAlertListeners();
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showFlashMessage('Error loading data', 'danger');
+        })
+        .finally(() => {
+            hideLoadingIndicator();
+        });
+    }
+
+    // Update alerts display
+    function updateAlerts(alerts) {
+        const alertsContainer = document.getElementById('alerts-container');
+        if (alerts && alerts.length > 0) {
+            let alertsHTML = '';
+            alerts.forEach(alert => {
+                alertsHTML += `
+                    <div class="alert-item flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                         data-type="${alert.type}"
+                         data-manufacturer="${alert.manufacturer}"
+                         data-model="${alert.model || ''}"
+                         data-days="${alert.days}">
+                        <div class="bg-${alert.type}-100 text-${alert.type}-500 p-2 rounded-full mr-3">
+                            <i class="fas ${alert.icon}"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium">${alert.title}</p>
+                            <p class="text-sm text-gray-500">${alert.message}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            alertsContainer.innerHTML = alertsHTML;
+            
+            // Reattach alert click listeners
+            attachAlertListeners();
+        } else {
+            alertsContainer.innerHTML = `
+                <div class="text-center text-gray-500 py-4">
+                    No recent alerts
+                </div>
+            `;
+        }
+    }
+
+    // Refresh alerts data
+    function refreshAlerts() {
+        fetch('{{ url_for("main.dashboard") }}?alerts_only=1', {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            updateAlerts(data.alerts);
+        })
+        .catch(error => {
+            console.error('Error refreshing alerts:', error);
+        });
+    }
+
+    // Refresh all data
+    function refreshData() {
+        applyFilters();
+    }
+
+    // Show loading indicator
+    function showLoadingIndicator() {
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'loading-indicator';
+        loadingDiv.className = 'fixed top-0 left-0 w-full h-1 bg-primary z-50';
+        document.body.appendChild(loadingDiv);
+    }
+
+    // Hide loading indicator
+    function hideLoadingIndicator() {
+        const loadingDiv = document.getElementById('loading-indicator');
+        if (loadingDiv) {
+            loadingDiv.remove();
+        }
+    }
+
+    // Show modal with alert details
+    function showAlertDetails(alertElement) {
+        const type = alertElement.dataset.type;
+        const manufacturer = alertElement.dataset.manufacturer;
+        const model = alertElement.dataset.model;
+        const days = alertElement.dataset.days;
+        
+        // Set modal title based on alert type
+        const modalTitle = document.getElementById('modalTitle');
+        let title = '';
+        
+        switch(type) {
+            case 'warning':
+                title = 'Expiring Soon Assets';
+                break;
+            case 'danger':
+                title = 'Expired Assets';
+                break;
+            case 'info':
+                title = 'Recently Added Assets';
+                break;
+            default:
+                title = 'Alert Details';
+        }
+        
+        modalTitle.textContent = title;
+        
+        // Show modal
+        const modal = document.getElementById('alertModal');
+        modal.classList.remove('hidden');
+        
+        // Show loader
+        const modalContent = document.getElementById('modalContent');
+        modalContent.innerHTML = `
+            <div class="flex justify-center">
+                <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            </div>
+        `;
+        
+        // Hide export button until data loads
+        document.getElementById('exportButton').classList.add('hidden');
+        
+        // Fetch alert details
+        fetch(`/alerts/details?type=${type}&manufacturer=${encodeURIComponent(manufacturer)}&model=${encodeURIComponent(model)}&days=${days}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.assets && data.assets.length > 0) {
+                    // Build table with alert details
+                    let tableHTML = `
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Tag</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Warranty Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiration Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Remaining</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                    `;
+                    
+                    data.assets.forEach(asset => {
+                        let statusClass = '';
+                        let statusText = '';
+                        let daysRemaining = asset.days_until_expiry;
+                        
+                        if (asset.status === 'Active') {
+                            statusClass = 'bg-green-100 text-green-800';
+                            statusText = 'Active';
+                        } else if (asset.status === 'Expiring Soon') {
+                            statusClass = 'bg-yellow-100 text-yellow-800';
+                            statusText = 'Expiring Soon';
+                        } else {
+                            statusClass = 'bg-red-100 text-red-800';
+                            statusText = 'Expired';
+                            daysRemaining = 'Expired';
+                        }
+                        
+                        tableHTML += `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${asset.asset_tag}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${asset.service_tag}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 text-xs rounded-full ${statusClass}">${statusText}</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${asset.warranty_end_date}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${daysRemaining}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    tableHTML += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 text-sm text-gray-500">
+                            Showing ${data.assets.length} of ${data.total_count} assets
+                        </div>
+                    `;
+                    
+                    modalContent.innerHTML = tableHTML;
+                    
+                    // Show export button
+                    const exportButton = document.getElementById('exportButton');
+                    exportButton.classList.remove('hidden');
+                    exportButton.onclick = function() {
+                        exportAlertDetails(type, manufacturer, model, days);
+                    };
+                } else {
+                    modalContent.innerHTML = `
+                        <div class="text-center py-4">
+                            <i class="fas fa-info-circle text-3xl text-gray-400 mb-3"></i>
+                            <p class="text-gray-600">No assets found for this alert</p>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching alert details:', error);
+                modalContent.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle text-3xl text-red-500 mb-3"></i>
+                        <p class="text-gray-600">Failed to load alert details</p>
+                    </div>
+                `;
+            });
+    }
+    
+    // Export alert details to CSV
+    function exportAlertDetails(type, manufacturer, model, days) {
+        const url = `/alerts/export?type=${type}&manufacturer=${encodeURIComponent(manufacturer)}&model=${encodeURIComponent(model)}&days=${days}`;
+        window.location.href = url;
+    }
+    
+    // Close modal
+    function closeModal() {
+        document.getElementById('alertModal').classList.add('hidden');
+    }
+    
+    // Attach alert click listeners
+    function attachAlertListeners() {
+        document.querySelectorAll('.alert-item').forEach(alert => {
+            alert.addEventListener('click', (e) => {
+                showAlertDetails(alert);
+            });
+        });
+    }
+
+    // Attach delete listeners
+    function attachDeleteListeners() {
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                deleteAsset(btn.dataset.id);
+            });
+        });
+    }
+    
+    // Attach pagination listeners
+    function attachPaginationListeners() {
+        document.querySelectorAll('.pagination-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                applyFilters(link.href);
+            });
+        });
+    }
+    
+    // Show flash message
+    function showFlashMessage(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert mb-4 px-4 py-3 rounded relative ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+        alertDiv.innerHTML = `
+            ${message}
+            <button class="absolute top-0 right-0 px-3 py-1" onclick="this.parentElement.remove()">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        
+        const mainContent = document.querySelector('main');
+        mainContent.insertBefore(alertDiv, mainContent.firstChild);
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            alertDiv.style.opacity = '0';
+            setTimeout(() => alertDiv.remove(), 300);
+        }, 5000);
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        initCharts();
+        attachDeleteListeners();
+        attachPaginationListeners();
+        attachAlertListeners();
+        
+        // Close modal when clicking outside
+        document.getElementById('alertModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('alertModal')) {
+                closeModal();
+            }
+        });
+        
+        // Filter form submission
+        document.getElementById('filter-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(e.target);
+            const params = new URLSearchParams(formData).toString();
+            
+            // Create new URL with updated parameters
+            const newUrl = new URL(window.location);
+            newUrl.search = params;
+            
+            applyFilters(newUrl.toString());
+        });
+        
+        // Handle popstate for back/forward navigation
+        window.addEventListener('popstate', (e) => {
+            applyFilters(window.location.href);
+        });
+    });
+</script>
+
+<style>
+    .loader {
+        border-top-color: #3498db;
+        animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    #alertModal {
+        transition: opacity 0.3s ease;
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,45 @@
+# Environment variables
+.env
+.venv
+venv/
+env/
+
+# Python cache
+*__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database files
+*.db
+*.sqlite
+
+# Log files
+*.log
+
+# IDE files
+.idea/
+.vscode/
+*.code-workspace
+
+# macOS files
+.DS_Store
+
+# Windows files
+Thumbs.db
+
+# Test files
+tests/
+test/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Virtual environment files
+bin/
+include/
+lib/
+pip-selfcheck.json
+pyvenv.cfg

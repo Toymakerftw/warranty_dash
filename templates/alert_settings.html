@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+{% block title %}Alert Settings{% endblock %}
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow mt-8">
+    <h2 class="text-2xl font-bold mb-4">Alert Settings</h2>
+    <!-- Schedule Section -->
+    <div class="mb-6">
+        <h3 class="text-lg font-semibold mb-2">Alert Schedule</h3>
+        <form id="schedule-form" class="flex flex-col md:flex-row gap-2 items-center">
+            <input type="text" name="cron" id="cron-input" class="border p-2 rounded flex-1" value="{{ alert_cron }}" required>
+            <button type="submit" class="bg-primary text-white px-4 py-2 rounded hover:bg-blue-700">Update Schedule</button>
+        </form>
+        <div class="text-xs text-gray-500 mt-1">Cron format: <code>min hour day month day_of_week</code> (e.g. <code>0 8 * * *</code> for 8am daily)</div>
+        <div id="schedule-msg" class="text-sm mt-1"></div>
+    </div>
+    <!-- Add Webhook Section -->
+    <form id="add-alert-form" class="mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input type="text" name="name" placeholder="Name (e.g. IT Team)" class="border p-2 rounded" required>
+            <input type="url" name="webhook_url" placeholder="Google Chat Webhook URL" class="border p-2 rounded" required>
+            <select name="alert_type" class="border p-2 rounded" required>
+                <option value="all">All Alerts</option>
+                <option value="warning">Expiring Soon</option>
+                <option value="danger">Expired</option>
+                <option value="info">New Assets</option>
+            </select>
+        </div>
+        <button type="submit" class="mt-4 bg-primary text-white px-4 py-2 rounded hover:bg-blue-700">Add Webhook</button>
+    </form>
+    <div id="alert-settings-list">
+        <h3 class="text-lg font-semibold mb-2">Current Webhooks</h3>
+        {% if settings %}
+        <ul class="divide-y">
+            {% for s in settings %}
+            <li class="flex items-center justify-between py-2">
+                <div>
+                    <span class="font-medium">{{ s.name }}</span>
+                    <span class="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">{{ s.alert_type }}</span>
+                    <div class="text-xs text-gray-500 truncate w-64">{{ s.webhook_url }}</div>
+                </div>
+                <button class="remove-btn text-red-600 hover:underline" data-id="{{ s.id }}">Remove</button>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="text-gray-500">No webhooks configured.</div>
+        {% endif %}
+    </div>
+    <div class="mt-6">
+        <h3 class="text-lg font-semibold mb-2">Send Test Alert</h3>
+        <form id="test-alert-form" class="flex flex-col md:flex-row gap-2">
+            <input type="text" name="message" placeholder="Test message" class="border p-2 rounded flex-1" value="This is a test alert from WarrantyTrack.">
+            <button type="submit" class="bg-secondary text-black px-4 py-2 rounded hover:bg-yellow-400">Send Test</button>
+        </form>
+        <div id="test-results" class="mt-2 text-sm"></div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+// Schedule update
+const scheduleForm = document.getElementById('schedule-form');
+scheduleForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(scheduleForm);
+    fetch('{{ url_for('settings.update_alert_cron') }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('schedule-msg').textContent = data.message;
+        if (data.success) {
+            document.getElementById('schedule-msg').classList.add('text-green-600');
+            document.getElementById('schedule-msg').classList.remove('text-red-600');
+        } else {
+            document.getElementById('schedule-msg').classList.add('text-red-600');
+            document.getElementById('schedule-msg').classList.remove('text-green-600');
+        }
+    });
+});
+
+// Add alert setting
+const addForm = document.getElementById('add-alert-form');
+addForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(addForm);
+    fetch('{{ url_for('settings.add_alert_setting_route') }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message);
+        }
+    });
+});
+
+// Remove alert setting
+const removeBtns = document.querySelectorAll('.remove-btn');
+removeBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (confirm('Remove this webhook?')) {
+            fetch(`{{ url_for('settings.remove_alert_setting_route', setting_id=0) }}`.replace('0', btn.dataset.id), {
+                method: 'POST'
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    });
+});
+
+// Test alert with enhanced error handling
+const testForm = document.getElementById('test-alert-form');
+testForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(testForm);
+    
+    // Clear previous results
+    document.getElementById('test-results').innerHTML = '<div class="text-gray-500">Sending tests...</div>';
+    
+    fetch('{{ url_for('settings.test_alert_settings') }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (!response.ok) {
+            // If server returns an error, try to parse the JSON error
+            return response.json().then(error => {
+                throw new Error(error.message || 'Server returned an error');
+            }).catch(() => {
+                throw new Error('Server error: ' + response.status);
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        let html = '';
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(r => {
+                html += `<div>${r.name}: <span class='${r.success ? 'text-green-600' : 'text-red-600'}'>${r.success ? 'Success' : 'Failed'}</span></div>`;
+            });
+        } else {
+            html = '<div class="text-red-600">No active webhooks to test</div>';
+        }
+        document.getElementById('test-results').innerHTML = html;
+    })
+    .catch(error => {
+        console.error('Test alert error:', error);
+        document.getElementById('test-results').innerHTML = `
+            <div class="text-red-600">Error: ${error.message}</div>
+            <div class="text-xs text-gray-500">Check console for details</div>
+        `;
+    });
+});
+</script>
+{% endblock %}

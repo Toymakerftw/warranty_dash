@@ -1,0 +1,135 @@
+<div class="overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Tag</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manufacturer</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Warranty Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expires In</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for asset in assets %}
+            <tr data-id="{{ asset.id }}" class="cursor-pointer hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ asset.asset_tag }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div class="flex items-center">
+                        <div class="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center mr-2">
+                            <i class="fab fa-windows text-blue-500 text-xs"></i>
+                        </div>
+                        {{ asset.manufacturer }}
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ asset.model or 'N/A' }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ asset.service_tag }}</td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                    {% if asset.status == 'Active' %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
+                    {% elif asset.status == 'Expiring Soon' %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Expiring Soon</span>
+                    {% else %}
+                    <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Expired</span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-16 bg-gray-200 rounded-full h-2">
+                            {% if asset.status == 'Active' %}
+                                {% set progress = 100 %}
+                                <div class="bg-green-500 h-2 rounded-full" style="width: {{ progress }}%"></div>
+                            {% elif asset.status == 'Expiring Soon' %}
+                                {% set progress = (asset.days_until_expiry / 90) * 100 %}
+                                <div class="bg-yellow-500 h-2 rounded-full" style="width: {{ progress|int }}%"></div>
+                            {% else %}
+                                <div class="bg-red-500 h-2 rounded-full" style="width: 0%"></div>
+                            {% endif %}
+                        </div>
+                        <span>
+                            {% if asset.status == 'Expired' %}
+                                Expired
+                            {% elif asset.days_until_expiry == 0 %}
+                                Today
+                            {% else %}
+                                {{ asset.days_until_expiry }} days
+                            {% endif %}
+                        </span>
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <a href="{{ url_for('assets.edit_asset', asset_id=asset.id) }}" class="text-primary hover:text-blue-700 mr-3">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                    <button class="text-danger hover:text-red-700 delete-btn" data-id="{{ asset.id }}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="px-6 py-4 text-center text-sm text-gray-500">
+                    No assets found matching your filters
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+    <div class="text-sm text-gray-500">
+        Showing 
+        <span class="font-medium">{{ (pagination.page - 1) * pagination.items_per_page + 1 }}</span>
+        to 
+        <span class="font-medium">
+            {% if pagination.page * pagination.items_per_page > pagination.total_items %}
+                {{ pagination.total_items }}
+            {% else %}
+                {{ pagination.page * pagination.items_per_page }}
+            {% endif %}
+        </span>
+        of <span class="font-medium">{{ pagination.total_items }}</span> assets
+    </div>
+    <div class="flex space-x-2">
+        {% if pagination.page > 1 %}
+            <a href="{{ url_for('main.dashboard', 
+                              page=pagination.page-1,
+                              status=current_status,
+                              manufacturer=current_manufacturer) }}" 
+               class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100 pagination-link">
+                Previous
+            </a>
+        {% else %}
+            <span class="px-3 py-1 border rounded-md text-sm text-gray-400">Previous</span>
+        {% endif %}
+
+        {% for p in range(1, pagination.total_pages + 1) %}
+            {% if p == pagination.page %}
+                <span class="px-3 py-1 border rounded-md text-sm bg-primary text-white">{{ p }}</span>
+            {% else %}
+                {% if p >= pagination.page - 2 and p <= pagination.page + 2 %}
+                    <a href="{{ url_for('main.dashboard', 
+                                      page=p,
+                                      status=current_status,
+                                      manufacturer=current_manufacturer) }}" 
+                       class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100 pagination-link">
+                        {{ p }}
+                    </a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+
+        {% if pagination.page < pagination.total_pages %}
+            <a href="{{ url_for('main.dashboard', 
+                              page=pagination.page+1,
+                              status=current_status,
+                              manufacturer=current_manufacturer) }}" 
+               class="px-3 py-1 border rounded-md text-sm hover:bg-gray-100 pagination-link">
+                Next
+            </a>
+        {% else %}
+            <span class="px-3 py-1 border rounded-md text-sm text-gray-400">Next</span>
+        {% endif %}
+    </div>
+</div>
