@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+
+{% block title %}Reports Dashboard - Asset Warranty Tracking{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Reports Dashboard</h1>
+            <p class="text-gray-600 mt-2">Generate comprehensive reports for your warranty assets</p>
+        </div>
+        <div class="flex space-x-3">
+            <button onclick="refreshStats()" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition duration-200">
+                <i class="fas fa-sync-alt mr-2"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-blue-100 rounded-lg">
+                    <i class="fas fa-laptop text-blue-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Assets</p>
+                    <p class="text-2xl font-bold text-gray-900" id="total-assets">-</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-red-100 rounded-lg">
+                    <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Expired</p>
+                    <p class="text-2xl font-bold text-gray-900" id="expired-assets">-</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-yellow-100 rounded-lg">
+                    <i class="fas fa-clock text-yellow-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Expiring Soon</p>
+                    <p class="text-2xl font-bold text-gray-900" id="expiring-soon">-</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-2 bg-green-100 rounded-lg">
+                    <i class="fas fa-check-circle text-green-600 text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Active</p>
+                    <p class="text-2xl font-bold text-gray-900" id="active-assets">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Types -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Monthly Reports -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-calendar-alt mr-2 text-primary"></i>Monthly Reports
+            </h3>
+            <p class="text-gray-600 mb-4">Generate reports for specific months showing warranty expirations and asset status.</p>
+            
+            <form action="{{ url_for('reports.monthly_report') }}" method="GET" class="space-y-4">
+                <div>
+                    <label for="month" class="block text-sm font-medium text-gray-700 mb-2">Select Month</label>
+                    <input type="month" id="month" name="month" value="{{ now.strftime('%Y-%m') if now else '' }}" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-eye mr-2"></i>View Report
+                    </button>
+                    <button type="button" onclick="exportMonthlyReport()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-download mr-2"></i>Export CSV
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Custom Date Range -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-calendar-range mr-2 text-primary"></i>Custom Date Range
+            </h3>
+            <p class="text-gray-600 mb-4">Create reports for specific date ranges with various filters.</p>
+            
+            <form action="{{ url_for('reports.custom_report') }}" method="GET" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="start_date" class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                        <input type="date" id="start_date" name="start_date" 
+                               value="{{ (now - timedelta(days=30)).strftime('%Y-%m-%d') if now else '' }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label for="end_date" class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                        <input type="date" id="end_date" name="end_date" 
+                               value="{{ now.strftime('%Y-%m-%d') if now else '' }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                </div>
+                <div>
+                    <label for="report_type" class="block text-sm font-medium text-gray-700 mb-2">Report Type</label>
+                    <select id="report_type" name="type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="warranty_expiry">Warranty Expiry</option>
+                        <option value="purchase_date">Purchase Date</option>
+                        <option value="created_date">Created Date</option>
+                    </select>
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-eye mr-2"></i>View Report
+                    </button>
+                    <button type="button" onclick="exportCustomReport()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-download mr-2"></i>Export CSV
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Expiring Soon Reports -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-exclamation-circle mr-2 text-primary"></i>Expiring Soon Reports
+            </h3>
+            <p class="text-gray-600 mb-4">Track assets with warranties expiring in the next specified days.</p>
+            
+            <form action="{{ url_for('reports.expiring_report') }}" method="GET" class="space-y-4">
+                <div>
+                    <label for="days" class="block text-sm font-medium text-gray-700 mb-2">Days Ahead</label>
+                    <select id="days" name="days" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                        <option value="7">Next 7 days</option>
+                        <option value="30" selected>Next 30 days</option>
+                        <option value="60">Next 60 days</option>
+                        <option value="90">Next 90 days</option>
+                    </select>
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-eye mr-2"></i>View Report
+                    </button>
+                    <button type="button" onclick="exportExpiringReport()" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-download mr-2"></i>Export CSV
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Manufacturer Reports -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                <i class="fas fa-industry mr-2 text-primary"></i>Manufacturer Reports
+            </h3>
+            <p class="text-gray-600 mb-4">Analyze assets by manufacturer with detailed breakdowns.</p>
+            
+            <form action="{{ url_for('reports.manufacturer_report') }}" method="GET" class="space-y-4">
+                <div>
+                    <label for="manufacturer" class="block text-sm font-medium text-gray-700 mb-2">Manufacturer (Optional)</label>
+                    <input type="text" id="manufacturer" name="manufacturer" placeholder="Leave empty for all manufacturers"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary">
+                </div>
+                <div class="flex space-x-3">
+                    <button type="submit" class="bg-primary text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-eye mr-2"></i>View Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Statistics Summary -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Statistics Summary</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+                <h4 class="font-medium text-gray-900 mb-2">Expiring in Next 30 Days</h4>
+                <p class="text-2xl font-bold text-yellow-600" id="next-30">-</p>
+            </div>
+            <div>
+                <h4 class="font-medium text-gray-900 mb-2">Expiring in Next 60 Days</h4>
+                <p class="text-2xl font-bold text-blue-600" id="next-60">-</p>
+            </div>
+            <div>
+                <h4 class="font-medium text-gray-900 mb-2">Expiring in Next 90 Days</h4>
+                <p class="text-2xl font-bold text-green-600" id="next-90">-</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <a href="{{ url_for('reports.expiring_report', days=30) }}" class="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-200">
+                <i class="fas fa-clock text-yellow-500 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">30-Day Expiry</p>
+                    <p class="text-sm text-gray-600">View assets expiring soon</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('reports.monthly_report') }}" class="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-200">
+                <i class="fas fa-calendar-alt text-blue-500 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">This Month</p>
+                    <p class="text-sm text-gray-600">Current month report</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('reports.manufacturer_report') }}" class="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-200">
+                <i class="fas fa-industry text-green-500 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">All Manufacturers</p>
+                    <p class="text-sm text-gray-600">Manufacturer breakdown</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let refreshTimeout = null;
+
+function refreshStats() {
+    // Prevent multiple simultaneous requests
+    if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+    }
+    
+    // Only refresh if not already loading
+    if (document.getElementById('total-assets').textContent === 'Loading...') {
+        return;
+    }
+    
+    // Show loading state
+    document.getElementById('total-assets').textContent = 'Loading...';
+    document.getElementById('expired-assets').textContent = 'Loading...';
+    document.getElementById('expiring-soon').textContent = 'Loading...';
+    document.getElementById('active-assets').textContent = 'Loading...';
+    document.getElementById('next-30').textContent = 'Loading...';
+    document.getElementById('next-60').textContent = 'Loading...';
+    document.getElementById('next-90').textContent = 'Loading...';
+    
+    refreshTimeout = setTimeout(() => {
+        fetch('/api/reports/stats')
+            .then(response => response.json())
+            .then(data => {
+                updateStats(data);
+            })
+            .catch(error => {
+                console.error('Error fetching stats:', error);
+                // Reset loading state on error
+                document.getElementById('total-assets').textContent = '-';
+                document.getElementById('expired-assets').textContent = '-';
+                document.getElementById('expiring-soon').textContent = '-';
+                document.getElementById('active-assets').textContent = '-';
+                document.getElementById('next-30').textContent = '-';
+                document.getElementById('next-60').textContent = '-';
+                document.getElementById('next-90').textContent = '-';
+            });
+    }, 200);
+}
+
+function updateStats(data) {
+    document.getElementById('total-assets').textContent = data.overall_stats.total_assets;
+    document.getElementById('expired-assets').textContent = data.overall_stats.expired;
+    document.getElementById('expiring-soon').textContent = data.overall_stats.expiring_soon;
+    document.getElementById('active-assets').textContent = data.overall_stats.active;
+    document.getElementById('next-30').textContent = data.expiring_data.next_30;
+    document.getElementById('next-60').textContent = data.expiring_data.next_60;
+    document.getElementById('next-90').textContent = data.expiring_data.next_90;
+}
+
+function exportMonthlyReport() {
+    const month = document.getElementById('month').value;
+    if (month) {
+        window.location.href = `/reports/export/monthly?month=${month}`;
+    }
+}
+
+function exportCustomReport() {
+    const startDate = document.getElementById('start_date').value;
+    const endDate = document.getElementById('end_date').value;
+    const type = document.getElementById('report_type').value;
+    if (startDate && endDate) {
+        window.location.href = `/reports/export/custom?start_date=${startDate}&end_date=${endDate}&type=${type}`;
+    }
+}
+
+function exportExpiringReport() {
+    const days = document.getElementById('days').value;
+    if (days) {
+        window.location.href = `/reports/export/expiring?days=${days}`;
+    }
+}
+
+// Load stats on page load only - no auto-refresh
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize with a delay to ensure DOM is ready
+    setTimeout(() => {
+        refreshStats();
+    }, 100);
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+    }
+});
+</script>
+{% endblock %} 

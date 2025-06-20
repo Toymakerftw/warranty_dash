@@ -45,7 +45,7 @@
                 <a href="{{ url_for('settings.alert_settings') }}" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200">
                     <i class="fas fa-bell mr-2"></i>Alerts Settings
                 </a>
-                <a href="#" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200">
+                <a href="{{ url_for('reports.reports_dashboard') }}" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200 {% if request.path.startswith('/reports') %}bg-primary text-white{% endif %}">
                     <i class="fas fa-chart-bar mr-2"></i>Reports
                 </a>
                 <a href="#" class="block py-2.5 px-4 rounded hover:bg-gray-700 transition duration-200">
