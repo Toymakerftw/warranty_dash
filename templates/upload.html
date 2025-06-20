@@ -3,63 +3,145 @@
 {% block title %}Upload Assets - WarrantyTrack{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
-    <div class="px-6 py-4 border-b">
-        <h2 class="text-xl font-semibold text-gray-800">Bulk Upload Assets</h2>
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Upload Assets</h1>
+            <p class="text-gray-600 mt-2">Import warranty data from CSV files to manage your asset inventory</p>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{{ url_for('assets.download_template') }}" class="bg-secondary text-black px-4 py-2 rounded-lg hover:bg-yellow-400 transition duration-200">
+                <i class="fas fa-download mr-2"></i>Download Template
+            </a>
+        </div>
     </div>
-    
-    <div class="p-6">
+
+    <!-- Upload Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-file-upload mr-2 text-primary"></i>Bulk Upload Assets
+        </h3>
+        <p class="text-gray-600 mb-6">Upload a CSV file containing your asset warranty information.</p>
+        
         <form method="POST" action="{{ url_for('assets.upload_csv') }}" enctype="multipart/form-data">
-            <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6">
-                <i class="fas fa-file-upload text-4xl text-primary mb-3"></i>
-                <h3 class="text-lg font-medium text-gray-700 mb-1">Drag and drop your file here</h3>
-                <p class="text-sm text-gray-500 mb-4">or</p>
-                <label class="cursor-pointer bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-600">
+            <!-- File Upload Area -->
+            <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6 transition-all duration-200 hover:border-primary hover:bg-blue-50">
+                <i class="fas fa-cloud-upload-alt text-4xl text-primary mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-700 mb-2">Drag and drop your CSV file here</h3>
+                <p class="text-sm text-gray-500 mb-4">or click to browse files</p>
+                <label class="cursor-pointer bg-primary text-white px-6 py-3 rounded-md hover:bg-opacity-90 transition duration-200 inline-flex items-center">
+                    <i class="fas fa-folder-open mr-2"></i>
                     Browse Files
                     <input type="file" name="csv_file" id="csv_file" class="hidden" accept=".csv">
                 </label>
-                <p class="text-xs text-gray-500 mt-3">Supported formats: CSV (Max file size: 5MB)</p>
+                <div class="mt-4 text-xs text-gray-500">
+                    <p>Supported format: CSV (Max file size: 5MB)</p>
+                    <p class="mt-1">Download the template above for the correct format</p>
+                </div>
             </div>
             
-            <div id="file-info" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+            <!-- File Info Display -->
+            <div id="file-info" class="hidden mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div class="flex justify-between items-center">
-                    <div>
-                        <span id="file-name" class="font-medium"></span>
-                        <span id="file-size" class="text-sm text-gray-500 ml-2"></span>
+                    <div class="flex items-center">
+                        <i class="fas fa-file-csv text-green-600 mr-3 text-lg"></i>
+                        <div>
+                            <span id="file-name" class="font-medium text-green-800"></span>
+                            <span id="file-size" class="text-sm text-green-600 ml-2"></span>
+                        </div>
                     </div>
-                    <button type="button" id="remove-file" class="text-gray-400 hover:text-gray-600">
+                    <button type="button" id="remove-file" class="text-green-600 hover:text-green-800 transition duration-200">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
             
+            <!-- Upload Options -->
             <div class="mb-6">
-                <h3 class="text-md font-medium text-gray-700 mb-3">Upload Options</h3>
-                <div class="space-y-3">
-                    <label class="flex items-center">
-                        <input type="radio" name="uploadMode" class="form-radio text-primary" checked>
-                        <span class="ml-2">Add new assets only</span>
+                <h4 class="text-md font-medium text-gray-700 mb-4">Upload Options</h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <label class="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200">
+                        <input type="radio" name="uploadMode" value="add" class="form-radio text-primary" checked>
+                        <div class="ml-3">
+                            <div class="font-medium text-gray-900">Add New Assets</div>
+                            <div class="text-sm text-gray-500">Only add assets that don't exist</div>
+                        </div>
                     </label>
-                    <label class="flex items-center">
-                        <input type="radio" name="uploadMode" class="form-radio text-primary">
-                        <span class="ml-2">Update existing assets</span>
+                    <label class="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200">
+                        <input type="radio" name="uploadMode" value="update" class="form-radio text-primary">
+                        <div class="ml-3">
+                            <div class="font-medium text-gray-900">Update Existing</div>
+                            <div class="text-sm text-gray-500">Update assets that already exist</div>
+                        </div>
                     </label>
-                    <label class="flex items-center">
-                        <input type="radio" name="uploadMode" class="form-radio text-primary">
-                        <span class="ml-2">Full sync (replace all data)</span>
+                    <label class="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200">
+                        <input type="radio" name="uploadMode" value="sync" class="form-radio text-primary">
+                        <div class="ml-3">
+                            <div class="font-medium text-gray-900">Full Sync</div>
+                            <div class="text-sm text-gray-500">Replace all existing data</div>
+                        </div>
                     </label>
                 </div>
             </div>
             
-            <div class="flex justify-between items-center">
-                <a href="#" class="text-primary hover:underline flex items-center">
-                    <i class="fas fa-download mr-2"></i> Download CSV Template
-                </a>
-                <button type="submit" id="submit-btn" class="px-4 py-2 bg-primary text-white rounded-md hover:bg-blue-600 disabled:opacity-50" disabled>
+            <!-- Submit Button -->
+            <div class="flex justify-end">
+                <button type="submit" id="submit-btn" 
+                        class="bg-primary text-white px-8 py-3 rounded-md hover:bg-opacity-90 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center" 
+                        disabled>
+                    <i class="fas fa-upload mr-2"></i>
                     Start Upload
                 </button>
             </div>
         </form>
+    </div>
+
+    <!-- Instructions Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-info-circle mr-2 text-primary"></i>CSV Format Instructions
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h4 class="font-medium text-gray-900 mb-3">Required Columns</h4>
+                <ul class="space-y-2 text-sm text-gray-600">
+                    <li class="flex items-center">
+                        <i class="fas fa-check text-green-500 mr-2"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded">asset_tag</code> - Unique identifier
+                    </li>
+                    <li class="flex items-center">
+                        <i class="fas fa-check text-green-500 mr-2"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded">manufacturer</code> - Device manufacturer
+                    </li>
+                    <li class="flex items-center">
+                        <i class="fas fa-check text-green-500 mr-2"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded">service_tag</code> - Serial number
+                    </li>
+                    <li class="flex items-center">
+                        <i class="fas fa-check text-green-500 mr-2"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded">warranty_end_date</code> - YYYY-MM-DD format
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="font-medium text-gray-900 mb-3">Optional Columns</h4>
+                <ul class="space-y-2 text-sm text-gray-600">
+                    <li class="flex items-center">
+                        <i class="fas fa-info text-blue-500 mr-2"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded">model</code> - Device model
+                    </li>
+                    <li class="flex items-center">
+                        <i class="fas fa-info text-blue-500 mr-2"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded">purchase_date</code> - YYYY-MM-DD format
+                    </li>
+                    <li class="flex items-center">
+                        <i class="fas fa-info text-blue-500 mr-2"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded">notes</code> - Additional information
+                    </li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

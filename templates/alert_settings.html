@@ -1,58 +1,166 @@
 {% extends 'base.html' %}
 {% block title %}Alert Settings{% endblock %}
 {% block content %}
-<div class="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow mt-8">
-    <h2 class="text-2xl font-bold mb-4">Alert Settings</h2>
-    <!-- Schedule Section -->
-    <div class="mb-6">
-        <h3 class="text-lg font-semibold mb-2">Alert Schedule</h3>
-        <form id="schedule-form" class="flex flex-col md:flex-row gap-2 items-center">
-            <input type="text" name="cron" id="cron-input" class="border p-2 rounded flex-1" value="{{ alert_cron }}" required>
-            <button type="submit" class="bg-primary text-white px-4 py-2 rounded hover:bg-blue-700">Update Schedule</button>
-        </form>
-        <div class="text-xs text-gray-500 mt-1">Cron format: <code>min hour day month day_of_week</code> (e.g. <code>0 8 * * *</code> for 8am daily)</div>
-        <div id="schedule-msg" class="text-sm mt-1"></div>
-    </div>
-    <!-- Add Webhook Section -->
-    <form id="add-alert-form" class="mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input type="text" name="name" placeholder="Name (e.g. IT Team)" class="border p-2 rounded" required>
-            <input type="url" name="webhook_url" placeholder="Google Chat Webhook URL" class="border p-2 rounded" required>
-            <select name="alert_type" class="border p-2 rounded" required>
-                <option value="all">All Alerts</option>
-                <option value="warning">Expiring Soon</option>
-                <option value="danger">Expired</option>
-                <option value="info">New Assets</option>
-            </select>
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Alert Settings</h1>
+            <p class="text-gray-600 mt-2">Configure webhook notifications and alert schedules for warranty tracking</p>
         </div>
-        <button type="submit" class="mt-4 bg-primary text-white px-4 py-2 rounded hover:bg-blue-700">Add Webhook</button>
-    </form>
-    <div id="alert-settings-list">
-        <h3 class="text-lg font-semibold mb-2">Current Webhooks</h3>
-        {% if settings %}
-        <ul class="divide-y">
-            {% for s in settings %}
-            <li class="flex items-center justify-between py-2">
-                <div>
-                    <span class="font-medium">{{ s.name }}</span>
-                    <span class="ml-2 text-xs bg-gray-200 px-2 py-1 rounded">{{ s.alert_type }}</span>
-                    <div class="text-xs text-gray-500 truncate w-64">{{ s.webhook_url }}</div>
-                </div>
-                <button class="remove-btn text-red-600 hover:underline" data-id="{{ s.id }}">Remove</button>
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <div class="text-gray-500">No webhooks configured.</div>
-        {% endif %}
+        <div class="flex space-x-3">
+            <button onclick="location.reload()" class="bg-primary text-white px-4 py-2 rounded-lg hover:bg-opacity-90 transition duration-200">
+                <i class="fas fa-sync-alt mr-2"></i>Refresh
+            </button>
+        </div>
     </div>
-    <div class="mt-6">
-        <h3 class="text-lg font-semibold mb-2">Send Test Alert</h3>
-        <form id="test-alert-form" class="flex flex-col md:flex-row gap-2">
-            <input type="text" name="message" placeholder="Test message" class="border p-2 rounded flex-1" value="This is a test alert from WarrantyTrack.">
-            <button type="submit" class="bg-secondary text-black px-4 py-2 rounded hover:bg-yellow-400">Send Test</button>
+
+    <!-- Alert Schedule Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-clock mr-2 text-primary"></i>Alert Schedule
+        </h3>
+        <p class="text-gray-600 mb-4">Configure when automated alerts should be sent.</p>
+        
+        <form id="schedule-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                    <label for="cron-input" class="block text-sm font-medium text-gray-700 mb-2">Cron Schedule</label>
+                    <input type="text" name="cron" id="cron-input" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" 
+                           value="{{ alert_cron }}" required>
+                </div>
+                <div class="md:col-span-2">
+                    <button type="submit" class="bg-primary text-white px-6 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                        <i class="fas fa-save mr-2"></i>Update Schedule
+                    </button>
+                </div>
+            </div>
+            <div class="text-sm text-gray-500">
+                <p><strong>Cron format:</strong> <code class="bg-gray-100 px-2 py-1 rounded">min hour day month day_of_week</code></p>
+                <p><strong>Examples:</strong> <code class="bg-gray-100 px-2 py-1 rounded">0 8 * * *</code> (8am daily), <code class="bg-gray-100 px-2 py-1 rounded">0 9 * * 1</code> (9am Mondays)</p>
+            </div>
+            <div id="schedule-msg" class="text-sm mt-2"></div>
         </form>
-        <div id="test-results" class="mt-2 text-sm"></div>
+    </div>
+
+    <!-- Add Webhook Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-plus-circle mr-2 text-primary"></i>Add Webhook
+        </h3>
+        <p class="text-gray-600 mb-4">Add a new webhook to receive notifications via Google Chat or other platforms.</p>
+        
+        <form id="add-alert-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="webhook-name" class="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <input type="text" name="name" id="webhook-name" placeholder="e.g. IT Team" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
+                </div>
+                <div>
+                    <label for="webhook-url" class="block text-sm font-medium text-gray-700 mb-2">Webhook URL</label>
+                    <input type="url" name="webhook_url" id="webhook-url" placeholder="Google Chat Webhook URL" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
+                </div>
+                <div>
+                    <label for="alert-type" class="block text-sm font-medium text-gray-700 mb-2">Alert Type</label>
+                    <select name="alert_type" id="alert-type" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" required>
+                        <option value="all">All Alerts</option>
+                        <option value="warning">Expiring Soon</option>
+                        <option value="danger">Expired</option>
+                        <option value="info">New Assets</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <button type="submit" class="bg-primary text-white px-6 py-2 rounded-md hover:bg-opacity-90 transition duration-200">
+                    <i class="fas fa-plus mr-2"></i>Add Webhook
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Current Webhooks Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-list mr-2 text-primary"></i>Current Webhooks
+        </h3>
+        
+        <div id="alert-settings-list">
+            {% if settings %}
+            <div class="overflow-hidden border border-gray-200 rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Webhook URL</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for s in settings %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">{{ s.name }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    {% if s.alert_type == 'all' %}bg-blue-100 text-blue-800
+                                    {% elif s.alert_type == 'warning' %}bg-yellow-100 text-yellow-800
+                                    {% elif s.alert_type == 'danger' %}bg-red-100 text-red-800
+                                    {% else %}bg-green-100 text-green-800{% endif %}">
+                                    {{ s.alert_type|title }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-500 truncate max-w-xs">{{ s.webhook_url }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <button class="remove-btn text-red-600 hover:text-red-900 transition duration-200" data-id="{{ s.id }}">
+                                    <i class="fas fa-trash mr-1"></i>Remove
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-500">
+                <i class="fas fa-bell-slash text-3xl mb-3"></i>
+                <p class="text-lg">No webhooks configured</p>
+                <p class="text-sm">Add a webhook above to start receiving notifications</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Test Alert Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-paper-plane mr-2 text-primary"></i>Send Test Alert
+        </h3>
+        <p class="text-gray-600 mb-4">Test your webhook configuration by sending a sample notification.</p>
+        
+        <form id="test-alert-form" class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div class="md:col-span-2">
+                    <label for="test-message" class="block text-sm font-medium text-gray-700 mb-2">Test Message</label>
+                    <input type="text" name="message" id="test-message" placeholder="Test message" 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary" 
+                           value="This is a test alert from WarrantyTrack.">
+                </div>
+                <div>
+                    <button type="submit" class="w-full bg-secondary text-black px-6 py-2 rounded-md hover:bg-yellow-400 transition duration-200">
+                        <i class="fas fa-paper-plane mr-2"></i>Send Test
+                    </button>
+                </div>
+            </div>
+            <div id="test-results" class="mt-4"></div>
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -69,14 +177,10 @@ scheduleForm.addEventListener('submit', function(e) {
     })
     .then(r => r.json())
     .then(data => {
-        document.getElementById('schedule-msg').textContent = data.message;
-        if (data.success) {
-            document.getElementById('schedule-msg').classList.add('text-green-600');
-            document.getElementById('schedule-msg').classList.remove('text-red-600');
-        } else {
-            document.getElementById('schedule-msg').classList.add('text-red-600');
-            document.getElementById('schedule-msg').classList.remove('text-green-600');
-        }
+        const msgElement = document.getElementById('schedule-msg');
+        msgElement.textContent = data.message;
+        const className = data.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+        msgElement.className = 'text-sm mt-2 px-3 py-2 rounded-md ' + className;
     });
 });
 
@@ -103,7 +207,7 @@ addForm.addEventListener('submit', function(e) {
 const removeBtns = document.querySelectorAll('.remove-btn');
 removeBtns.forEach(btn => {
     btn.addEventListener('click', function() {
-        if (confirm('Remove this webhook?')) {
+        if (confirm('Are you sure you want to remove this webhook?')) {
             fetch(`{{ url_for('settings.remove_alert_setting_route', setting_id=0) }}`.replace('0', btn.dataset.id), {
                 method: 'POST'
             })
@@ -126,7 +230,8 @@ testForm.addEventListener('submit', function(e) {
     const formData = new FormData(testForm);
     
     // Clear previous results
-    document.getElementById('test-results').innerHTML = '<div class="text-gray-500">Sending tests...</div>';
+    const resultsElement = document.getElementById('test-results');
+    resultsElement.innerHTML = '<div class="text-gray-500 flex items-center"><i class="fas fa-spinner fa-spin mr-2"></i>Sending tests...</div>';
     
     fetch('{{ url_for('settings.test_alert_settings') }}', {
         method: 'POST',
@@ -134,7 +239,6 @@ testForm.addEventListener('submit', function(e) {
     })
     .then(response => {
         if (!response.ok) {
-            // If server returns an error, try to parse the JSON error
             return response.json().then(error => {
                 throw new Error(error.message || 'Server returned an error');
             }).catch(() => {
@@ -146,20 +250,35 @@ testForm.addEventListener('submit', function(e) {
     .then(data => {
         let html = '';
         if (data.results && data.results.length > 0) {
+            html = '<div class="space-y-2">';
             data.results.forEach(r => {
-                html += `<div>${r.name}: <span class='${r.success ? 'text-green-600' : 'text-red-600'}'>${r.success ? 'Success' : 'Failed'}</span></div>`;
+                const statusClass = r.success ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+                const icon = r.success ? 'fa-check' : 'fa-times';
+                const status = r.success ? 'Success' : 'Failed';
+                html += '<div class="flex items-center justify-between p-3 rounded-md ' + statusClass + '">' +
+                    '<span class="font-medium">' + r.name + '</span>' +
+                    '<span class="flex items-center">' +
+                    '<i class="fas ' + icon + ' mr-2"></i>' +
+                    status +
+                    '</span>' +
+                    '</div>';
             });
+            html += '</div>';
         } else {
-            html = '<div class="text-red-600">No active webhooks to test</div>';
+            html = '<div class="text-center py-4 text-gray-500"><i class="fas fa-exclamation-triangle mr-2"></i>No active webhooks to test</div>';
         }
-        document.getElementById('test-results').innerHTML = html;
+        resultsElement.innerHTML = html;
     })
     .catch(error => {
         console.error('Test alert error:', error);
-        document.getElementById('test-results').innerHTML = `
-            <div class="text-red-600">Error: ${error.message}</div>
-            <div class="text-xs text-gray-500">Check console for details</div>
-        `;
+        resultsElement.innerHTML = 
+            '<div class="bg-red-100 text-red-700 p-3 rounded-md">' +
+            '<div class="flex items-center">' +
+            '<i class="fas fa-exclamation-triangle mr-2"></i>' +
+            '<span class="font-medium">Error: ' + error.message + '</span>' +
+            '</div>' +
+            '<div class="text-sm mt-1">Check console for details</div>' +
+            '</div>';
     });
 });
 </script>

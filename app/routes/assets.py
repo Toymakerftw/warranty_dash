@@ -1,7 +1,7 @@
-from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify
+from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, send_file
 from app.database import get_db, normalize_date
 import csv
-from io import TextIOWrapper
+from io import TextIOWrapper, StringIO, BytesIO
 import logging
 from datetime import datetime
 
@@ -217,6 +217,78 @@ def delete_asset(asset_id):
             return jsonify({'success': False, 'message': 'Failed to delete asset'}), 500
         flash('Failed to delete asset', 'danger')
         return redirect(url_for('main.dashboard'))
+
+@assets_bp.route('/download-template')
+def download_template():
+    """Download a CSV template for asset uploads"""
+    try:
+        logger.info("CSV template download requested")
+        
+        # Create a StringIO object to write CSV data
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header row with column names
+        writer.writerow([
+            'asset_tag',
+            'manufacturer', 
+            'service_tag',
+            'model',
+            'warranty_end_date',
+            'purchase_date',
+            'notes'
+        ])
+        
+        # Write example rows
+        writer.writerow([
+            'LAPTOP001',
+            'Dell',
+            'ABC123XYZ',
+            'Latitude 5520',
+            '2025-12-31',
+            '2023-01-15',
+            'IT Department laptop'
+        ])
+        writer.writerow([
+            'DESKTOP002',
+            'HP',
+            'HP789DEF',
+            'EliteDesk 800',
+            '2024-06-30',
+            '2022-03-20',
+            'Finance department'
+        ])
+        writer.writerow([
+            'TABLET003',
+            'Apple',
+            'AP456GHI',
+            'iPad Pro 12.9',
+            '2025-03-15',
+            '2023-09-10',
+            'Sales team tablet'
+        ])
+        
+        # Get the CSV content and convert to bytes
+        csv_content = output.getvalue()
+        output.close()
+        
+        # Create a BytesIO object for binary data
+        csv_file = BytesIO(csv_content.encode('utf-8'))
+        
+        logger.info("CSV template generated successfully")
+        
+        # Return the file as a download
+        return send_file(
+            csv_file,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='warranty_assets_template.csv'
+        )
+        
+    except Exception as e:
+        logger.exception(f"Error generating CSV template: {str(e)}")
+        flash('Failed to generate template file', 'danger')
+        return redirect(url_for('assets.upload_csv'))
 
 def clean_field(value):
     """Clean and normalize a field value"""
