@@ -161,7 +161,21 @@ def edit_asset(asset_id):
     # GET request - show edit form
     try:
         logger.debug(f"Edit asset page accessed: ID={asset_id}")
-        cursor.execute("SELECT * FROM assets WHERE id = ?", (asset_id,))
+        cursor.execute("""
+            SELECT 
+                *,
+                CASE 
+                    WHEN warranty_end_date < date('now') THEN 'Expired'
+                    WHEN warranty_end_date BETWEEN date('now') AND date('now', '+90 days') THEN 'Expiring Soon'
+                    ELSE 'Active'
+                END as status,
+                CASE
+                    WHEN warranty_end_date < date('now') THEN 0
+                    ELSE CAST(julianday(warranty_end_date) - julianday('now') AS INTEGER)
+                END as days_until_expiry
+            FROM assets 
+            WHERE id = ?
+        """, (asset_id,))
         asset = cursor.fetchone()
         
         if not asset:
