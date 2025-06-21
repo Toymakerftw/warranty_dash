@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, make_response, current_app
+from flask_login import login_required, current_user
 from app.database import get_db
 from datetime import datetime
 import logging
@@ -221,69 +222,52 @@ def send_scheduled_alerts(app):
             logger.error(f"Error sending scheduled card alerts: {str(e)}")
 
 @alerts_bp.route('/alerts/details')
+@login_required
 def alert_details():
+    """Get detailed alert information"""
     try:
-        alert_type = request.args.get('type', '')
+        logger.info(f"Alert details requested by user: {current_user.username}")
+        alert_type = request.args.get('type', 'warning')
         manufacturer = request.args.get('manufacturer', '')
         model = request.args.get('model', '')
-        days = request.args.get('days', 30)
-
-        logger.info(f"Alert details requested - Type: {alert_type}, Manufacturer: {manufacturer}, Model: {model}, Days: {days}")
-
+        days = int(request.args.get('days', 30))
+        
         db = get_db()
         cursor = db.cursor()
-
-        base_query = """
-            SELECT
-                asset_tag,
-                service_tag,
-                warranty_end_date,
-                CASE
-                    WHEN warranty_end_date < date('now') THEN 'Expired'
-                    WHEN warranty_end_date BETWEEN date('now') AND date('now', '+90 days') THEN 'Expiring Soon'
-                    ELSE 'Active'
-                END as status,
-                CASE
-                    WHEN warranty_end_date < date('now') THEN 0
-                    ELSE CAST(julianday(warranty_end_date) - julianday('now') AS INTEGER)
-                END as days_until_expiry
-            FROM assets
-            WHERE 1=1
-        """
-
-        params = []
-
+        
         if alert_type == 'warning':
-            base_query += " AND warranty_end_date BETWEEN date('now') AND date('now', ?)"
-            params.append(f"+{days} days")
+            # Assets expiring soon
+            cursor.execute("""
+                SELECT * FROM assets 
+                WHERE manufacturer = ? AND warranty_end_date BETWEEN date('now') AND date('now', ?)
+                ORDER BY warranty_end_date
+            """, (manufacturer, f"+{days} days"))
         elif alert_type == 'danger':
-            base_query += " AND warranty_end_date BETWEEN date('now', ?) AND date('now')"
-            params.append(f"-{days} days")
-        elif alert_type == 'info':
-            base_query += " AND DATE(created_at) > date('now', ?)"
-            params.append(f"-{days} days")
-
-        if manufacturer:
-            base_query += " AND manufacturer = ?"
-            params.append(manufacturer)
-
-        if model:
-            base_query += " AND model = ?"
-            params.append(model)
-
-        cursor.execute(base_query, tuple(params))
+            # Recently expired assets
+            cursor.execute("""
+                SELECT * FROM assets 
+                WHERE manufacturer = ? AND warranty_end_date BETWEEN date('now', ?) AND date('now')
+                ORDER BY warranty_end_date
+            """, (manufacturer, f"-{days} days"))
+        else:
+            # New assets
+            cursor.execute("""
+                SELECT * FROM assets 
+                WHERE manufacturer = ? AND DATE(created_at) > date('now', ?)
+                ORDER BY created_at DESC
+            """, (manufacturer, f"-{days} days"))
+        
         assets = cursor.fetchall()
-
-        count_query = "SELECT COUNT(*) FROM (" + base_query + ")"
-        cursor.execute(count_query, tuple(params))
-        total_count = cursor.fetchone()[0]
-
-        logger.info(f"Alert details fetched: {len(assets)} assets found")
-
+        
         return jsonify({
-            'assets': [dict(asset) for asset in assets],
-            'total_count': total_count
+            'type': alert_type,
+            'manufacturer': manufacturer,
+            'model': model,
+            'days': days,
+            'count': len(assets),
+            'assets': [dict(asset) for asset in assets]
         })
+        
     except Exception as e:
-        logger.exception("Failed to get alert details")
-        return jsonify({'error': 'Internal server error'}), 500
+        logger.error(f"Error getting alert details: {str(e)}")
+        return jsonify({'error': 'Failed to get alert details'}), 500

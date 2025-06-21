@@ -4,6 +4,7 @@ from datetime import datetime
 import re
 import logging
 import math
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -31,6 +32,24 @@ def close_db(e=None):
 def init_db():
     try:
         db = get_db()
+        
+        # Create users table
+        db.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            first_name TEXT,
+            last_name TEXT,
+            role TEXT DEFAULT 'user',
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now')),
+            last_login TEXT
+        )
+        ''')
+        
+        # Create assets table
         db.execute('''
         CREATE TABLE IF NOT EXISTS assets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,9 +60,13 @@ def init_db():
             warranty_end_date TEXT,
             purchase_date TEXT,
             notes TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
+            created_by INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (created_by) REFERENCES users (id)
         )
         ''')
+        
+        # Create alert_settings table
         db.execute('''
         CREATE TABLE IF NOT EXISTS alert_settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,15 +74,31 @@ def init_db():
             webhook_url TEXT,
             alert_type TEXT,
             is_active INTEGER DEFAULT 1,
-            created_at TEXT DEFAULT (datetime('now'))
+            created_by INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (created_by) REFERENCES users (id)
         )
         ''')
+        
+        # Create app_settings table
         db.execute('''
         CREATE TABLE IF NOT EXISTS app_settings (
             key TEXT PRIMARY KEY,
             value TEXT
         )
         ''')
+        
+        # Create default admin user if no users exist
+        cursor = db.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        if cursor.fetchone()[0] == 0:
+            admin_password = generate_password_hash('admin123')
+            db.execute('''
+            INSERT INTO users (username, email, password_hash, first_name, last_name, role)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ''', ('admin', 'admin@warrantytrack.local', admin_password, 'Admin', 'User', 'admin'))
+            logger.info("Default admin user created: admin/admin123")
+        
         db.commit()
         logger.info("Database tables initialized successfully")
     except sqlite3.Error as e:
@@ -239,17 +278,17 @@ def get_alert_settings():
         logger.error(f"Error fetching alert settings: {str(e)}")
         return []
 
-def add_alert_setting(name, webhook_url, alert_type):
+def add_alert_setting(name, webhook_url, alert_type, created_by=None):
     try:
         db = get_db()
         cursor = db.cursor()
         cursor.execute(
-            "INSERT INTO alert_settings (name, webhook_url, alert_type, is_active) VALUES (?, ?, ?, 1)",
-            (name, webhook_url, alert_type)
+            "INSERT INTO alert_settings (name, webhook_url, alert_type, created_by, is_active) VALUES (?, ?, ?, ?, 1)",
+            (name, webhook_url, alert_type, created_by)
         )
         db.commit()
         setting_id = cursor.lastrowid
-        logger.info(f"Added new alert setting: ID={setting_id}, Name={name}, Type={alert_type}")
+        logger.info(f"Added new alert setting: ID={setting_id}, Name={name}, Type={alert_type}, Created by user {created_by}")
         return setting_id
     except sqlite3.Error as e:
         logger.error(f"Error adding alert setting: {str(e)}")
@@ -362,3 +401,125 @@ def search_assets(query, page=1, per_page=10):
     except sqlite3.Error as e:
         logger.error(f"Search error: {str(e)}")
         return [], 0
+
+# User authentication functions
+def get_user_by_id(user_id):
+    """Get user by ID"""
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        user = cursor.fetchone()
+        return dict(user) if user else None
+    except sqlite3.Error as e:
+        logger.error(f"Error getting user by ID: {str(e)}")
+        return None
+
+def get_user_by_username(username):
+    """Get user by username"""
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+        user = cursor.fetchone()
+        return dict(user) if user else None
+    except sqlite3.Error as e:
+        logger.error(f"Error getting user by username: {str(e)}")
+        return None
+
+def get_user_by_email(email):
+    """Get user by email"""
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+        user = cursor.fetchone()
+        return dict(user) if user else None
+    except sqlite3.Error as e:
+        logger.error(f"Error getting user by email: {str(e)}")
+        return None
+
+def create_user(username, email, password, first_name=None, last_name=None, role='user'):
+    """Create a new user"""
+    try:
+        db = get_db()
+        password_hash = generate_password_hash(password)
+        cursor = db.cursor()
+        cursor.execute('''
+        INSERT INTO users (username, email, password_hash, first_name, last_name, role)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ''', (username, email, password_hash, first_name, last_name, role))
+        db.commit()
+        logger.info(f"User created: {username}")
+        return cursor.lastrowid
+    except sqlite3.IntegrityError as e:
+        logger.error(f"User creation failed - duplicate username/email: {str(e)}")
+        return None
+    except sqlite3.Error as e:
+        logger.error(f"Error creating user: {str(e)}")
+        return None
+
+def verify_user(username, password):
+    """Verify user credentials"""
+    try:
+        user = get_user_by_username(username)
+        if user and check_password_hash(user['password_hash'], password):
+            # Update last login
+            db = get_db()
+            db.execute("UPDATE users SET last_login = datetime('now') WHERE id = ?", (user['id'],))
+            db.commit()
+            logger.info(f"User login successful: {username}")
+            return user
+        return None
+    except sqlite3.Error as e:
+        logger.error(f"Error verifying user: {str(e)}")
+        return None
+
+def update_user_password(user_id, new_password):
+    """Update user password"""
+    try:
+        db = get_db()
+        password_hash = generate_password_hash(new_password)
+        db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id))
+        db.commit()
+        logger.info(f"Password updated for user ID: {user_id}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Error updating password: {str(e)}")
+        return False
+
+def get_all_users():
+    """Get all users (for admin)"""
+    try:
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT id, username, email, first_name, last_name, role, is_active, created_at, last_login FROM users ORDER BY created_at DESC")
+        users = cursor.fetchall()
+        return [dict(user) for user in users]
+    except sqlite3.Error as e:
+        logger.error(f"Error getting all users: {str(e)}")
+        return []
+
+def update_user_status(user_id, is_active):
+    """Update user active status"""
+    try:
+        db = get_db()
+        db.execute("UPDATE users SET is_active = ? WHERE id = ?", (is_active, user_id))
+        db.commit()
+        logger.info(f"User status updated: ID {user_id}, active: {is_active}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Error updating user status: {str(e)}")
+        return False
+
+def update_user_role(user_id, role):
+    """Update user role"""
+    try:
+        db = get_db()
+        db.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+        db.commit()
+        logger.info(f"User role updated: ID {user_id}, role: {role}")
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Error updating user role: {str(e)}")
+        return False

@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, jsonify, send_file
+from flask_login import login_required, current_user
 from app.database import get_db, calculate_warranty_stats
 from datetime import datetime, timedelta
 import csv
@@ -10,19 +11,25 @@ logger = logging.getLogger(__name__)
 reports_bp = Blueprint('reports', __name__)
 
 @reports_bp.route('/reports')
+@login_required
 def reports_dashboard():
     """Main reports dashboard"""
+    logger.info(f"Reports dashboard accessed by user: {current_user.username}")
     return render_template('reports_dashboard.html', now=datetime.now(), timedelta=timedelta)
 
 @reports_bp.route('/reports/charts')
+@login_required
 def reports_dashboard_charts():
     """Reports dashboard with charts (use with caution)"""
+    logger.info(f"Reports dashboard with charts accessed by user: {current_user.username}")
     return render_template('reports_dashboard.html', now=datetime.now(), timedelta=timedelta)
 
 @reports_bp.route('/reports/monthly')
+@login_required
 def monthly_report():
     """Generate monthly report"""
     try:
+        logger.info(f"Monthly report requested by user: {current_user.username}")
         month = request.args.get('month', datetime.now().strftime('%Y-%m'))
         year, month = month.split('-')
         
@@ -75,9 +82,11 @@ def monthly_report():
         return render_template('error.html', error="Failed to generate monthly report"), 500
 
 @reports_bp.route('/reports/custom')
+@login_required
 def custom_report():
     """Generate custom date range report"""
     try:
+        logger.info(f"Custom report requested by user: {current_user.username}")
         start_date = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
         end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
         report_type = request.args.get('type', 'warranty_expiry')
@@ -132,9 +141,11 @@ def custom_report():
         return render_template('error.html', error="Failed to generate custom report"), 500
 
 @reports_bp.route('/reports/expiring')
+@login_required
 def expiring_report():
     """Generate report for assets expiring soon"""
     try:
+        logger.info(f"Expiring report requested by user: {current_user.username}")
         days = int(request.args.get('days', 30))
         
         db = get_db()
@@ -191,9 +202,11 @@ def expiring_report():
         return render_template('error.html', error="Failed to generate expiring report"), 500
 
 @reports_bp.route('/reports/manufacturer')
+@login_required
 def manufacturer_report():
     """Generate manufacturer-specific report"""
     try:
+        logger.info(f"Manufacturer report requested by user: {current_user.username}")
         manufacturer = request.args.get('manufacturer', '')
         
         db = get_db()
@@ -251,9 +264,11 @@ def manufacturer_report():
         return render_template('error.html', error="Failed to generate manufacturer report"), 500
 
 @reports_bp.route('/reports/export/<report_type>')
+@login_required
 def export_report(report_type):
     """Export report as CSV"""
     try:
+        logger.info(f"Report export requested by user {current_user.username}: {report_type}")
         db = get_db()
         cursor = db.cursor()
         
@@ -347,9 +362,11 @@ def export_report(report_type):
         return jsonify({'error': 'Failed to export report'}), 500
 
 @reports_bp.route('/api/reports/stats')
+@login_required
 def get_report_stats():
     """Get statistics for reports dashboard"""
     try:
+        logger.info(f"Report stats requested by user: {current_user.username}")
         db = get_db()
         cursor = db.cursor()
         

@@ -1,6 +1,8 @@
 from flask import Flask
-from app.routes import main_bp, assets_bp, export_bp, settings_bp, alerts_bp, reports_bp
+from flask_login import LoginManager
+from app.routes import main_bp, assets_bp, export_bp, settings_bp, alerts_bp, reports_bp, auth_bp
 from app.database import init_db, get_app_setting
+from app.models import User
 from apscheduler.schedulers.background import BackgroundScheduler
 import atexit
 import logging
@@ -9,6 +11,17 @@ from logging.handlers import RotatingFileHandler
 def create_app():
     app = Flask(__name__)
     app.config.from_object('config.Config')
+    
+    # Initialize Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Please log in to access this page.'
+    login_manager.login_message_category = 'info'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.get(int(user_id))
     
     # Configure logging
     formatter = logging.Formatter(
@@ -38,6 +51,7 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(alerts_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(auth_bp, url_prefix='/auth')
     
     # Initialize database and scheduler inside app context
     with app.app_context():

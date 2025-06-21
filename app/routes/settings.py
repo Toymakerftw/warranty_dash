@@ -1,5 +1,7 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
+from flask_login import login_required, current_user
 from app.database import get_alert_settings, get_app_setting, add_alert_setting, remove_alert_setting, set_app_setting
+from app.routes.alerts import build_alert_card, send_google_chat_card
 from flask import current_app
 import logging
 
@@ -8,53 +10,74 @@ logger = logging.getLogger(__name__)
 settings_bp = Blueprint('settings', __name__)
 
 @settings_bp.route('/alert-settings', methods=['GET'])
+@login_required
 def alert_settings():
+    # Check if user is admin
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required to access alert settings.', 'error')
+        return redirect(url_for('main.dashboard'))
+    
     try:
+        logger.info(f"Alert settings page accessed by admin: {current_user.username}")
         settings = get_alert_settings()
         alert_cron = get_app_setting('alert_cron', current_app.config.get('ALERT_CRON', '0 8 * * *'))
-        logger.info("Alert settings page accessed")
         return render_template('alert_settings.html', settings=settings, alert_cron=alert_cron)
     except Exception as e:
         logger.exception("Error loading alert settings")
         return render_template('error.html', message="Failed to load alert settings"), 500
 
 @settings_bp.route('/alert-settings/add', methods=['POST'])
+@login_required
 def add_alert_setting_route():
+    # Check if user is admin
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Access denied. Admin privileges required.'}), 403
+    
     try:
         name = request.form.get('name')
         webhook_url = request.form.get('webhook_url')
         alert_type = request.form.get('alert_type')
         
         if not (name and webhook_url and alert_type):
-            logger.warning("Add alert setting failed: Missing required fields")
+            logger.warning(f"Add alert setting failed by user {current_user.username}: Missing required fields")
             return jsonify({'success': False, 'message': 'All fields are required.'}), 400
         
-        add_alert_setting(name, webhook_url, alert_type)
-        logger.info(f"Added new alert setting: {name} ({alert_type})")
+        add_alert_setting(name, webhook_url, alert_type, current_user.id)
+        logger.info(f"Added new alert setting by admin {current_user.username}: {name} ({alert_type})")
         return jsonify({'success': True, 'message': 'Alert setting added.'})
     except Exception as e:
         logger.exception("Failed to add alert setting")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 @settings_bp.route('/alert-settings/remove/<int:setting_id>', methods=['POST'])
+@login_required
 def remove_alert_setting_route(setting_id):
+    # Check if user is admin
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Access denied. Admin privileges required.'}), 403
+    
     try:
         remove_alert_setting(setting_id)
-        logger.info(f"Removed alert setting: ID={setting_id}")
+        logger.info(f"Removed alert setting by admin {current_user.username}: ID={setting_id}")
         return jsonify({'success': True, 'message': 'Alert setting removed.'})
     except Exception as e:
         logger.exception(f"Failed to remove alert setting {setting_id}")
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
 @settings_bp.route('/alert-settings/test', methods=['POST'])
+@login_required
 def test_alert_settings():
+    # Check if user is admin
+    if not current_user.is_admin:
+        return jsonify({'error': 'Access denied. Admin privileges required.'}), 403
+    
     try:
         message = request.form.get('message', 'This is a test alert from WarrantyTrack.')
         settings = get_alert_settings()
         results = []
         
         if not settings:
-            logger.warning("Test alert failed: No active alert settings")
+            logger.warning(f"Test alert failed by admin {current_user.username}: No active alert settings")
             return jsonify({'results': []})
         
         # Create a test card
@@ -91,23 +114,28 @@ def test_alert_settings():
                     'success': False
                 })
         
-        logger.info(f"Test card alerts sent to {len(settings)} webhooks")
+        logger.info(f"Test card alerts sent by admin {current_user.username} to {len(settings)} webhooks")
         return jsonify({'results': results})
     except Exception as e:
         logger.exception("Failed to send test alerts")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @settings_bp.route('/alert-settings/schedule', methods=['POST'])
+@login_required
 def update_alert_cron():
+    # Check if user is admin
+    if not current_user.is_admin:
+        return jsonify({'success': False, 'message': 'Access denied. Admin privileges required.'}), 403
+    
     try:
         cron = request.form.get('cron', '').strip()
         if not cron or len(cron.split()) != 5:
-            logger.warning(f"Invalid cron format: '{cron}'")
+            logger.warning(f"Invalid cron format by admin {current_user.username}: '{cron}'")
             return jsonify({'success': False, 'message': 'Invalid cron format. Use 5 fields: min hour day month day_of_week.'})
         
         set_app_setting('alert_cron', cron)
         current_app.config['ALERT_CRON'] = cron
-        logger.info(f"Updated alert cron schedule: {cron}")
+        logger.info(f"Updated alert cron schedule by admin {current_user.username}: {cron}")
         
         if hasattr(current_app, 'apscheduler'):
             try:

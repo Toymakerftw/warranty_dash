@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+from flask_login import login_required, current_user
 from app.database import get_db, search_assets 
 import math
 from .stats import calculate_warranty_stats, get_expiring_assets, get_recently_expired_assets, get_recently_added_assets
@@ -12,9 +13,10 @@ main_bp = Blueprint('main', __name__)
 ITEMS_PER_PAGE = 10  # Number of items to show per page
 
 @main_bp.route('/')
+@login_required
 def dashboard():
     try:
-        logger.info("Dashboard accessed")
+        logger.info(f"Dashboard accessed by user: {current_user.username}")
         db = get_db()
         cursor = db.cursor()
         
@@ -118,9 +120,10 @@ def dashboard():
         return render_template('error.html', message="Failed to load dashboard"), 500
     
 @main_bp.route('/search')
+@login_required
 def search():
     try:
-        logger.info("Search accessed")
+        logger.info(f"Search accessed by user: {current_user.username}")
         query = request.args.get('q', '').strip()
         
         # Validate search input

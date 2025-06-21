@@ -10,6 +10,12 @@ class Config:
     # Add base URL for card links
     APP_BASE_URL = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
 
+    # Authentication settings
+    LOGIN_DISABLED = os.environ.get('LOGIN_DISABLED', 'False').lower() == 'true'
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = True
+    PERMANENT_SESSION_LIFETIME = 3600  # 1 hour in seconds
+
     # Logging configuration
     LOG_LEVEL = logging.INFO
     LOG_FILE = 'warranty_track.log'

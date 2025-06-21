@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify, make_response
+from flask import Blueprint, request, jsonify, make_response, redirect, url_for, flash
+from flask_login import login_required, current_user
 from app.database import get_db
 from datetime import datetime
 import io
@@ -10,8 +11,15 @@ logger = logging.getLogger(__name__)
 export_bp = Blueprint('export', __name__)
 
 @export_bp.route('/alerts/export')
+@login_required
 def export_alert_details():
+    # Check if user is admin
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required to export alert details.', 'error')
+        return redirect(url_for('main.dashboard'))
+    
     try:
+        logger.info(f"Alert export requested by admin: {current_user.username}")
         alert_type = request.args.get('type', '')
         manufacturer = request.args.get('manufacturer', '')
         model = request.args.get('model', '')
@@ -82,7 +90,7 @@ def export_alert_details():
                 asset['days_until_expiry']
             ])
         
-        logger.info(f"Exported {len(assets)} assets to CSV")
+        logger.info(f"Exported {len(assets)} assets to CSV by admin {current_user.username}")
         
         response = make_response(output.getvalue())
         response.headers['Content-Disposition'] = f'attachment; filename=alert_details_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'

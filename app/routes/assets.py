@@ -1,4 +1,5 @@
 from flask import Blueprint, request, redirect, url_for, flash, render_template, jsonify, send_file
+from flask_login import login_required, current_user
 from app.database import get_db, normalize_date
 import csv
 from io import TextIOWrapper, StringIO, BytesIO
@@ -11,12 +12,18 @@ logger = logging.getLogger(__name__)
 assets_bp = Blueprint('assets', __name__, url_prefix='/assets')
 
 @assets_bp.route('/upload', methods=['GET', 'POST'])
+@login_required
 def upload_csv():
+    # Check if user is admin
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required to upload assets.', 'error')
+        return redirect(url_for('main.dashboard'))
+    
     if request.method == 'POST':
         file = request.files['csv_file']
         if file and (file.filename.endswith('.csv') or file.filename.endswith('.txt')):
             try:
-                logger.info(f"CSV upload started: {file.filename}")
+                logger.info(f"CSV upload started by admin {current_user.username}: {file.filename}")
                 # Parse CSV data with error handling
                 csv_file = TextIOWrapper(file.stream, encoding='utf-8', errors='replace')
                 reader = csv.DictReader(csv_file)
@@ -50,7 +57,7 @@ def upload_csv():
                             logger.warning(f"Row {row_num}: Missing required fields - {row}")
                             continue
                             
-                        # Insert into database with created_at timestamp
+                        # Insert into database with created_at timestamp and user
                         cursor.execute('''
                             INSERT INTO assets (
                                 asset_tag, 
@@ -58,14 +65,16 @@ def upload_csv():
                                 manufacturer, 
                                 model,
                                 warranty_end_date,
+                                created_by,
                                 created_at
-                            ) VALUES (?, ?, ?, ?, ?, datetime('now'))
+                            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
                         ''', (
                             asset_tag,
                             service_tag,
                             manufacturer,
                             model,
-                            warranty_date
+                            warranty_date,
+                            current_user.id
                         ))
                         count += 1
                         
@@ -81,7 +90,7 @@ def upload_csv():
                     logger.warning("CSV upload completed with no valid assets")
                 elif errors == 0:
                     flash(f'Successfully imported {count} assets', 'success')
-                    logger.info(f"CSV upload completed: {count} assets imported")
+                    logger.info(f"CSV upload completed by admin {current_user.username}: {count} assets imported")
                 else:
                     message = f'Imported {count} assets with {errors} errors and {skipped} empty rows skipped'
                     flash(message, 'warning' if count > 0 else 'danger')
@@ -97,17 +106,23 @@ def upload_csv():
             logger.warning("Invalid file type uploaded")
             flash('Please upload a valid CSV or TXT file', 'danger')
     
-    logger.debug("CSV upload page accessed")
+    logger.debug(f"CSV upload page accessed by admin {current_user.username}")
     return render_template('upload.html')
 
 @assets_bp.route('/edit/<int:asset_id>', methods=['GET', 'POST'])
+@login_required
 def edit_asset(asset_id):
+    # Check if user is admin
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required to edit assets.', 'error')
+        return redirect(url_for('main.dashboard'))
+    
     db = get_db()
     cursor = db.cursor()
     
     if request.method == 'POST':
         try:
-            logger.info(f"Editing asset: ID={asset_id}")
+            logger.info(f"Editing asset by admin {current_user.username}: ID={asset_id}")
             # Get form data
             form_data = {
                 'asset_tag': request.form['asset_tag'].strip(),
@@ -149,7 +164,7 @@ def edit_asset(asset_id):
             db.commit()
             
             flash('Asset updated successfully!', 'success')
-            logger.info(f"Asset updated: ID={asset_id}")
+            logger.info(f"Asset updated by admin {current_user.username}: ID={asset_id}")
             return redirect(url_for('main.dashboard'))
             
         except Exception as e:
@@ -160,7 +175,7 @@ def edit_asset(asset_id):
     
     # GET request - show edit form
     try:
-        logger.debug(f"Edit asset page accessed: ID={asset_id}")
+        logger.debug(f"Edit asset page accessed by admin {current_user.username}: ID={asset_id}")
         cursor.execute("""
             SELECT 
                 *,
@@ -191,52 +206,52 @@ def edit_asset(asset_id):
         return redirect(url_for('main.dashboard'))
 
 @assets_bp.route('/delete/<int:asset_id>', methods=['GET', 'DELETE'])
+@login_required
 def delete_asset(asset_id):
+    # Check if user is admin
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required to delete assets.', 'error')
+        return redirect(url_for('main.dashboard'))
+    
     try:
-        logger.info(f"Deleting asset: ID={asset_id}")
+        logger.info(f"Deleting asset by admin {current_user.username}: ID={asset_id}")
         db = get_db()
         cursor = db.cursor()
         
         # First check if asset exists
-        cursor.execute("SELECT 1 FROM assets WHERE id = ?", (asset_id,))
-        if not cursor.fetchone():
-            if request.method == 'DELETE':
-                logger.warning(f"Delete failed: Asset not found - ID={asset_id}")
-                return jsonify({'success': False, 'message': 'Asset not found'}), 404
+        cursor.execute("SELECT asset_tag FROM assets WHERE id = ?", (asset_id,))
+        asset = cursor.fetchone()
+        
+        if not asset:
             flash('Asset not found', 'danger')
+            logger.warning(f"Delete failed: Asset not found - ID={asset_id}")
             return redirect(url_for('main.dashboard'))
-            
+        
         # Delete the asset
         cursor.execute("DELETE FROM assets WHERE id = ?", (asset_id,))
         db.commit()
         
-        if request.method == 'DELETE':
-            # Return success with stats for AJAX requests
-            from app.database import calculate_warranty_stats
-            logger.info(f"Asset deleted: ID={asset_id}")
-            return jsonify({
-                'success': True,
-                'message': 'Asset deleted successfully!',
-                'stats': calculate_warranty_stats()
-            })
-        
-        # For GET requests (normal browser navigation)
-        flash('Asset deleted successfully!', 'success')
+        flash(f'Asset "{asset[0]}" deleted successfully!', 'success')
+        logger.info(f"Asset deleted by admin {current_user.username}: ID={asset_id}, Tag={asset[0]}")
         return redirect(url_for('main.dashboard'))
         
     except Exception as e:
         db.rollback()
         logger.exception(f"Error deleting asset {asset_id}: {str(e)}")
-        if request.method == 'DELETE':
-            return jsonify({'success': False, 'message': 'Failed to delete asset'}), 500
         flash('Failed to delete asset', 'danger')
         return redirect(url_for('main.dashboard'))
 
 @assets_bp.route('/download-template')
+@login_required
 def download_template():
     """Download a CSV template for asset uploads"""
+    # Check if user is admin
+    if not current_user.is_admin:
+        flash('Access denied. Admin privileges required to download templates.', 'error')
+        return redirect(url_for('main.dashboard'))
+    
     try:
-        logger.info("CSV template download requested")
+        logger.info(f"CSV template download requested by admin: {current_user.username}")
         
         # Create a StringIO object to write CSV data
         output = StringIO()
@@ -289,7 +304,7 @@ def download_template():
         # Create a BytesIO object for binary data
         csv_file = BytesIO(csv_content.encode('utf-8'))
         
-        logger.info("CSV template generated successfully")
+        logger.info(f"CSV template generated successfully for admin {current_user.username}")
         
         # Return the file as a download
         return send_file(
