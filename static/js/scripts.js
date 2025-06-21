@@ -1,18 +1,105 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Toggle sidebar on mobile
+    // Responsive sidebar functionality
     const toggleSidebar = document.getElementById('toggleSidebar');
     const closeSidebar = document.getElementById('closeSidebar');
-    const sidebar = document.querySelector('.sidebar');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    function openSidebar() {
+        sidebar.classList.remove('-translate-x-full');
+        sidebar.classList.add('translate-x-0');
+        sidebarOverlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+    
+    function closeSidebarFunc() {
+        sidebar.classList.remove('translate-x-0');
+        sidebar.classList.add('-translate-x-full');
+        sidebarOverlay.classList.add('hidden');
+        document.body.style.overflow = ''; // Restore scrolling
+    }
     
     if (toggleSidebar) {
-        toggleSidebar.addEventListener('click', function() {
-            sidebar.classList.add('active');
-        });
+        toggleSidebar.addEventListener('click', openSidebar);
     }
     
     if (closeSidebar) {
-        closeSidebar.addEventListener('click', function() {
-            sidebar.classList.remove('active');
+        closeSidebar.addEventListener('click', closeSidebarFunc);
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', closeSidebarFunc);
+    }
+    
+    // Close sidebar on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !sidebar.classList.contains('-translate-x-full')) {
+            closeSidebarFunc();
+        }
+    });
+    
+    // Close sidebar when clicking on a link (mobile)
+    const sidebarLinks = sidebar.querySelectorAll('a');
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            if (window.innerWidth < 768) { // Only on mobile
+                closeSidebarFunc();
+            }
+        });
+    });
+    
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        if (window.innerWidth >= 768) {
+            // On desktop, ensure sidebar is visible
+            sidebar.classList.remove('-translate-x-full');
+            sidebar.classList.add('translate-x-0');
+            sidebarOverlay.classList.add('hidden');
+            document.body.style.overflow = '';
+        } else {
+            // On mobile, ensure sidebar is hidden by default
+            if (!sidebar.classList.contains('translate-x-0')) {
+                sidebar.classList.add('-translate-x-full');
+                sidebar.classList.remove('translate-x-0');
+            }
+        }
+    });
+    
+    // Profile dropdown functionality
+    const profileButton = document.getElementById('profileButton');
+    const profileMenu = document.getElementById('profileMenu');
+    const profileChevron = document.getElementById('profileChevron');
+    
+    if (profileButton && profileMenu) {
+        profileButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const isOpen = !profileMenu.classList.contains('hidden');
+            
+            if (isOpen) {
+                // Close dropdown
+                profileMenu.classList.add('hidden');
+                profileChevron.style.transform = 'rotate(0deg)';
+            } else {
+                // Open dropdown
+                profileMenu.classList.remove('hidden');
+                profileChevron.style.transform = 'rotate(180deg)';
+            }
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!profileButton.contains(e.target) && !profileMenu.contains(e.target)) {
+                profileMenu.classList.add('hidden');
+                profileChevron.style.transform = 'rotate(0deg)';
+            }
+        });
+        
+        // Close dropdown when pressing Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !profileMenu.classList.contains('hidden')) {
+                profileMenu.classList.add('hidden');
+                profileChevron.style.transform = 'rotate(0deg)';
+            }
         });
     }
     
