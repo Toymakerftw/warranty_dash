@@ -221,6 +221,31 @@ def send_scheduled_alerts(app):
         except Exception as e:
             logger.error(f"Error sending scheduled card alerts: {str(e)}")
 
+@alerts_bp.route('/alerts/refresh')
+@login_required
+def refresh_alerts():
+    """Refresh alerts data via AJAX"""
+    try:
+        logger.info(f"Alerts refresh requested by user: {current_user.username}")
+        
+        # Generate fresh alerts
+        alerts = generate_alerts()
+        
+        # Return alerts as JSON
+        return jsonify({
+            'success': True,
+            'alerts': alerts,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error refreshing alerts: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to refresh alerts',
+            'alerts': []
+        }), 500
+
 @alerts_bp.route('/alerts/details')
 @login_required
 def alert_details():
@@ -271,3 +296,49 @@ def alert_details():
     except Exception as e:
         logger.error(f"Error getting alert details: {str(e)}")
         return jsonify({'error': 'Failed to get alert details'}), 500
+
+@alerts_bp.route('/alerts/stats')
+@login_required
+def alert_stats():
+    """Get alert statistics for dashboard"""
+    try:
+        logger.info(f"Alert stats requested by user: {current_user.username}")
+        
+        db = get_db()
+        cursor = db.cursor()
+        
+        # Get various alert counts
+        cursor.execute("""
+            SELECT COUNT(*) FROM assets 
+            WHERE warranty_end_date BETWEEN date('now') AND date('now', '+30 days')
+        """)
+        expiring_soon_count = cursor.fetchone()[0]
+        
+        cursor.execute("""
+            SELECT COUNT(*) FROM assets 
+            WHERE warranty_end_date < date('now')
+        """)
+        expired_count = cursor.fetchone()[0]
+        
+        cursor.execute("""
+            SELECT COUNT(*) FROM assets 
+            WHERE DATE(created_at) > date('now', '-7 days')
+        """)
+        new_assets_count = cursor.fetchone()[0]
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'expiring_soon': expiring_soon_count,
+                'expired': expired_count,
+                'new_assets': new_assets_count,
+                'total_alerts': expiring_soon_count + expired_count + new_assets_count
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting alert stats: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get alert statistics'
+        }), 500

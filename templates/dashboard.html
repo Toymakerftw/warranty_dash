@@ -89,10 +89,22 @@
 <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
     <div class="flex justify-between items-center mb-4">
         <h2 class="text-lg font-semibold">Recent Alerts</h2>
-        <button onclick="refreshAlerts()" class="text-gray-500 hover:text-primary">
-            <i class="fas fa-sync-alt"></i>
-        </button>
+        <div class="flex items-center space-x-2">
+            <button id="auto-refresh-toggle" class="text-gray-500 hover:text-primary" title="Toggle auto-refresh">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button onclick="refreshAlerts()" class="text-gray-500 hover:text-primary" title="Refresh alerts">
+                <i class="fas fa-sync-alt" id="refresh-icon"></i>
+            </button>
+        </div>
     </div>
+    
+    <!-- Loading indicator for alerts -->
+    <div id="alerts-loading" class="hidden flex justify-center py-4">
+        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-8 w-8"></div>
+    </div>
+    
+    <!-- Alerts container -->
     <div id="alerts-container" class="space-y-3">
         {% for alert in alerts %}
         <div class="alert-item flex items-start p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50"
@@ -151,6 +163,11 @@
             <p>No recent alerts</p>
         </div>
         {% endfor %}
+    </div>
+    
+    <!-- Last updated timestamp -->
+    <div id="alerts-timestamp" class="text-xs text-gray-400 mt-3 text-center">
+        Last updated: <span id="last-updated-time">Just now</span>
     </div>
 </div>
 </div>
@@ -423,53 +440,159 @@
         });
     }
 
-    // Update alerts display
-    function updateAlerts(alerts) {
+    // Enhanced alerts functionality
+    let autoRefreshInterval = null;
+    let isAutoRefreshEnabled = false;
+    let lastAlertCount = 0;
+    
+    // Refresh alerts data with loading state
+    function refreshAlerts() {
         const alertsContainer = document.getElementById('alerts-container');
+        const alertsLoading = document.getElementById('alerts-loading');
+        const refreshIcon = document.getElementById('refresh-icon');
+        const lastUpdatedTime = document.getElementById('last-updated-time');
+        
+        // Show loading state
+        alertsLoading.classList.remove('hidden');
+        refreshIcon.classList.add('fa-spin');
+        
+        fetch('{{ url_for("alerts.refresh_alerts") }}', {
+            headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const currentAlertCount = data.alerts ? data.alerts.length : 0;
+                
+                // Check if there are new alerts
+                if (currentAlertCount > lastAlertCount && lastAlertCount > 0) {
+                    showNotification(`New alerts available! (${currentAlertCount - lastAlertCount} new)`, 'info');
+                }
+                
+                updateAlertsDisplay(data.alerts);
+                updateTimestamp();
+                lastAlertCount = currentAlertCount;
+                
+                // Only show success message for manual refresh
+                if (!isAutoRefreshEnabled) {
+                    showFlashMessage('Alerts refreshed successfully', 'success');
+                }
+            } else {
+                showFlashMessage(data.error || 'Failed to refresh alerts', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing alerts:', error);
+            showFlashMessage('Error refreshing alerts', 'danger');
+        })
+        .finally(() => {
+            // Hide loading state
+            alertsLoading.classList.add('hidden');
+            refreshIcon.classList.remove('fa-spin');
+        });
+    }
+    
+    // Update alerts display with enhanced styling
+    function updateAlertsDisplay(alerts) {
+        const alertsContainer = document.getElementById('alerts-container');
+        
         if (alerts && alerts.length > 0) {
             let alertsHTML = '';
             alerts.forEach(alert => {
+                const typeClass = alert.type === 'warning' ? 'yellow' : 
+                                 alert.type === 'danger' ? 'red' : 'blue';
+                
                 alertsHTML += `
-                    <div class="alert-item flex items-start p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                    <div class="alert-item flex items-start p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-50"
                          data-type="${alert.type}"
                          data-manufacturer="${alert.manufacturer}"
                          data-model="${alert.model || ''}"
                          data-days="${alert.days}">
-                        <div class="bg-${alert.type}-100 text-${alert.type}-500 p-2 rounded-full mr-3">
-                            <i class="fas ${alert.icon}"></i>
+                        
+                        <!-- Colored icon with badge -->
+                        <div class="relative mr-3">
+                            <div class="flex items-center justify-center h-10 w-10 rounded-full bg-${typeClass}-100 text-${typeClass}-600">
+                                <i class="fas ${alert.icon}"></i>
+                            </div>
+                            <!-- Small badge for count -->
+                            <span class="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none bg-${typeClass}-500 text-white rounded-full">
+                                ${alert.count || '!'}
+                            </span>
                         </div>
-                        <div>
-                            <p class="font-medium">${alert.title}</p>
-                            <p class="text-sm text-gray-500">${alert.message}</p>
+                        
+                        <!-- Alert content -->
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 truncate">
+                                ${alert.title}
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                ${alert.message}
+                            </p>
+                            <div class="mt-1 flex items-center text-xs text-gray-500">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-${typeClass}-100 text-${typeClass}-800">
+                                    ${alert.type === 'warning' ? 'Expiring Soon' : 
+                                      alert.type === 'danger' ? 'Expired' : 'New'}
+                                </span>
+                                <span class="ml-2">${alert.days} days</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Chevron icon -->
+                        <div class="ml-2 flex-shrink-0 text-gray-400">
+                            <i class="fas fa-chevron-right"></i>
                         </div>
                     </div>
                 `;
             });
             alertsContainer.innerHTML = alertsHTML;
-            
-            // Reattach alert click listeners
-            attachAlertListeners();
         } else {
             alertsContainer.innerHTML = `
-                <div class="text-center text-gray-500 py-4">
-                    No recent alerts
+                <div class="text-center py-4 text-gray-500">
+                    <i class="fas fa-bell-slash text-2xl mb-2"></i>
+                    <p>No recent alerts</p>
                 </div>
             `;
         }
+        
+        // Reattach alert click listeners
+        attachAlertListeners();
     }
-
-    // Refresh alerts data
-    function refreshAlerts() {
-        fetch('{{ url_for("main.dashboard") }}?alerts_only=1', {
-            headers: {'X-Requested-With': 'XMLHttpRequest'}
-        })
-        .then(response => response.json())
-        .then(data => {
-            updateAlerts(data.alerts);
-        })
-        .catch(error => {
-            console.error('Error refreshing alerts:', error);
-        });
+    
+    // Update timestamp
+    function updateTimestamp() {
+        const lastUpdatedTime = document.getElementById('last-updated-time');
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        lastUpdatedTime.textContent = timeString;
+    }
+    
+    // Toggle auto-refresh
+    function toggleAutoRefresh() {
+        const toggleBtn = document.getElementById('auto-refresh-toggle');
+        
+        if (isAutoRefreshEnabled) {
+            // Disable auto-refresh
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            isAutoRefreshEnabled = false;
+            toggleBtn.classList.remove('text-primary');
+            toggleBtn.classList.add('text-gray-500');
+            showFlashMessage('Auto-refresh disabled', 'info');
+        } else {
+            // Enable auto-refresh (every 30 seconds)
+            autoRefreshInterval = setInterval(refreshAlerts, 30000);
+            isAutoRefreshEnabled = true;
+            toggleBtn.classList.remove('text-gray-500');
+            toggleBtn.classList.add('text-primary');
+            showFlashMessage('Auto-refresh enabled (30s)', 'success');
+        }
+    }
+    
+    // Legacy function for backward compatibility
+    function updateAlerts(alerts) {
+        updateAlertsDisplay(alerts);
     }
 
     // Refresh all data
@@ -684,12 +807,52 @@
         }, 5000);
     }
     
+    // Show notification
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg transition-all duration-300 transform translate-x-full`;
+        
+        const bgColor = type === 'info' ? 'bg-blue-500' : 
+                       type === 'success' ? 'bg-green-500' : 
+                       type === 'warning' ? 'bg-yellow-500' : 'bg-red-500';
+        
+        notification.className += ` ${bgColor} text-white`;
+        
+        notification.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas ${type === 'info' ? 'fa-info-circle' : 
+                               type === 'success' ? 'fa-check-circle' : 
+                               type === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle'} mr-2"></i>
+                <span>${message}</span>
+                <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.classList.remove('translate-x-full');
+        }, 100);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            notification.classList.add('translate-x-full');
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
+    }
+    
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
         initCharts();
         attachDeleteListeners();
         attachPaginationListeners();
         attachAlertListeners();
+        
+        // Add auto-refresh toggle listener
+        document.getElementById('auto-refresh-toggle').addEventListener('click', toggleAutoRefresh);
         
         // Close modal when clicking outside
         document.getElementById('alertModal').addEventListener('click', (e) => {
@@ -717,6 +880,23 @@
         window.addEventListener('popstate', (e) => {
             applyFilters(window.location.href);
         });
+        
+        // Set initial timestamp
+        updateTimestamp();
+        
+        // Set initial alert count
+        const initialAlerts = document.querySelectorAll('.alert-item');
+        lastAlertCount = initialAlerts.length;
+        
+        // Add visual feedback for auto-refresh toggle
+        const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+        autoRefreshToggle.addEventListener('mouseenter', function() {
+            if (!isAutoRefreshEnabled) {
+                this.title = 'Click to enable auto-refresh (30s)';
+            } else {
+                this.title = 'Click to disable auto-refresh';
+            }
+        });
     });
 </script>
 
@@ -733,6 +913,33 @@
     
     #alertModal {
         transition: opacity 0.3s ease;
+    }
+    
+    /* Auto-refresh toggle styles */
+    #auto-refresh-toggle.active {
+        color: #3498db;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    
+    /* Alert item hover effects */
+    .alert-item {
+        transition: all 0.2s ease;
+    }
+    
+    .alert-item:hover {
+        transform: translateX(2px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Loading animation for refresh icon */
+    .fa-spin {
+        animation: spin 1s linear infinite;
     }
 </style>
 {% endblock %}
