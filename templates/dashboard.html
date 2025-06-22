@@ -89,13 +89,54 @@
 <div class="bg-white p-4 rounded-lg shadow lg:col-span-1">
     <div class="flex justify-between items-center mb-4">
         <h2 class="text-lg font-semibold">Recent Alerts</h2>
-        <div class="flex items-center space-x-2">
-            <button id="auto-refresh-toggle" class="text-gray-500 hover:text-primary" title="Toggle auto-refresh">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-            <button onclick="refreshAlerts()" class="text-gray-500 hover:text-primary" title="Refresh alerts">
+        <div class="relative">
+            <!-- Smart Refresh Button -->
+            <button id="smart-refresh-btn" 
+                    class="relative p-2 text-gray-500 hover:text-primary transition-all duration-200 rounded-lg hover:bg-gray-100"
+                    title="Click to refresh, click arrow for options">
                 <i class="fas fa-sync-alt" id="refresh-icon"></i>
+                <!-- Auto-refresh indicator -->
+                <div id="auto-refresh-indicator" class="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full opacity-0 transition-opacity duration-200"></div>
+                <!-- Dropdown arrow -->
+                <i class="fas fa-chevron-down text-xs ml-1 opacity-50"></i>
             </button>
+            
+            <!-- Context Menu -->
+            <div id="refresh-context-menu" class="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden min-w-48">
+                <div class="py-1">
+                    <button id="refresh-now-btn" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Refresh Now
+                    </button>
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <button id="toggle-auto-refresh-btn" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center">
+                        <i class="fas fa-clock mr-2"></i>
+                        <span id="auto-refresh-text">Turn Auto-Refresh On</span>
+                    </button>
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <div class="px-4 py-2 text-xs text-gray-500">
+                        <div class="mb-2">Auto-Refresh Interval:</div>
+                        <div class="space-y-1">
+                            <label class="flex items-center">
+                                <input type="radio" name="refresh-interval" value="30" class="mr-2" checked>
+                                30 seconds
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="refresh-interval" value="60" class="mr-2">
+                                1 minute
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="refresh-interval" value="300" class="mr-2">
+                                5 minutes
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="refresh-interval" value="900" class="mr-2">
+                                15 minutes
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -444,7 +485,181 @@
     let autoRefreshInterval = null;
     let isAutoRefreshEnabled = false;
     let lastAlertCount = 0;
+    let refreshInterval = 30; // Default 30 seconds
     
+    // Smart refresh button functionality
+    function initSmartRefreshButton() {
+        const smartRefreshBtn = document.getElementById('smart-refresh-btn');
+        const contextMenu = document.getElementById('refresh-context-menu');
+        const refreshNowBtn = document.getElementById('refresh-now-btn');
+        const toggleAutoRefreshBtn = document.getElementById('toggle-auto-refresh-btn');
+        const autoRefreshText = document.getElementById('auto-refresh-text');
+        const autoRefreshIndicator = document.getElementById('auto-refresh-indicator');
+        
+        // Click handler for smart refresh button
+        smartRefreshBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Check if the click was on the dropdown arrow
+            if (e.target.classList.contains('fa-chevron-down') || e.target.closest('.fa-chevron-down')) {
+                toggleContextMenu();
+                return;
+            }
+            
+            // If auto-refresh is on, pause it briefly to avoid double refresh
+            if (isAutoRefreshEnabled) {
+                pauseAutoRefresh(5000); // Pause for 5 seconds
+            }
+            
+            // Perform manual refresh
+            refreshAlerts();
+        });
+        
+        // Right-click handler for context menu
+        smartRefreshBtn.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleContextMenu();
+        });
+        
+        // Click handler for refresh now button
+        refreshNowBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            hideContextMenu();
+            
+            // If auto-refresh is on, pause it briefly
+            if (isAutoRefreshEnabled) {
+                pauseAutoRefresh(5000);
+            }
+            
+            refreshAlerts();
+        });
+        
+        // Click handler for toggle auto-refresh button
+        toggleAutoRefreshBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            hideContextMenu();
+            toggleAutoRefresh();
+        });
+        
+        // Interval radio button handlers
+        document.querySelectorAll('input[name="refresh-interval"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                refreshInterval = parseInt(this.value);
+                if (isAutoRefreshEnabled) {
+                    // Restart auto-refresh with new interval
+                    stopAutoRefresh();
+                    startAutoRefresh();
+                }
+                showFlashMessage(`Auto-refresh interval set to ${formatInterval(refreshInterval)}`, 'info');
+            });
+        });
+        
+        // Hide context menu when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!smartRefreshBtn.contains(e.target) && !contextMenu.contains(e.target)) {
+                hideContextMenu();
+            }
+        });
+        
+        // Update auto-refresh text
+        function updateAutoRefreshText() {
+            autoRefreshText.textContent = isAutoRefreshEnabled ? 
+                'Turn Auto-Refresh Off' : 'Turn Auto-Refresh On';
+        }
+        
+        // Show/hide context menu
+        function toggleContextMenu() {
+            if (contextMenu.classList.contains('hidden')) {
+                showContextMenu();
+            } else {
+                hideContextMenu();
+            }
+        }
+        
+        function showContextMenu() {
+            contextMenu.classList.remove('hidden');
+            updateAutoRefreshText();
+        }
+        
+        function hideContextMenu() {
+            contextMenu.classList.add('hidden');
+        }
+        
+        // Update visual indicators
+        function updateVisualIndicators() {
+            if (isAutoRefreshEnabled) {
+                autoRefreshIndicator.classList.remove('opacity-0');
+                smartRefreshBtn.classList.add('text-primary');
+                smartRefreshBtn.classList.add('auto-refresh-active');
+                smartRefreshBtn.title = `Auto-refresh active (${formatInterval(refreshInterval)}). Click to refresh, click arrow for options`;
+            } else {
+                autoRefreshIndicator.classList.add('opacity-0');
+                smartRefreshBtn.classList.remove('text-primary');
+                smartRefreshBtn.classList.remove('auto-refresh-active');
+                smartRefreshBtn.title = 'Click to refresh, click arrow for options';
+            }
+        }
+        
+        // Expose functions for external use
+        window.updateAutoRefreshText = updateAutoRefreshText;
+        window.updateVisualIndicators = updateVisualIndicators;
+        window.hideContextMenu = hideContextMenu;
+    }
+    
+    // Format interval for display
+    function formatInterval(seconds) {
+        if (seconds < 60) {
+            return `${seconds} seconds`;
+        } else if (seconds < 3600) {
+            return `${seconds / 60} minute${seconds / 60 > 1 ? 's' : ''}`;
+        } else {
+            return `${seconds / 3600} hour${seconds / 3600 > 1 ? 's' : ''}`;
+        }
+    }
+    
+    // Pause auto-refresh temporarily
+    function pauseAutoRefresh(duration) {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+            
+            // Restart after duration
+            setTimeout(() => {
+                if (isAutoRefreshEnabled) {
+                    startAutoRefresh();
+                }
+            }, duration);
+        }
+    }
+    
+    // Start auto-refresh
+    function startAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        autoRefreshInterval = setInterval(refreshAlerts, refreshInterval * 1000);
+        isAutoRefreshEnabled = true;
+        updateVisualIndicators();
+        window.updateAutoRefreshText();
+        showFlashMessage(`Auto-refresh enabled (${formatInterval(refreshInterval)})`, 'success');
+    }
+    
+    // Stop auto-refresh
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+        isAutoRefreshEnabled = false;
+        updateVisualIndicators();
+        window.updateAutoRefreshText();
+        showFlashMessage('Auto-refresh disabled', 'info');
+    }
+
     // Refresh alerts data with loading state
     function refreshAlerts() {
         const alertsContainer = document.getElementById('alerts-container');
@@ -568,31 +783,34 @@
     
     // Toggle auto-refresh
     function toggleAutoRefresh() {
-        const toggleBtn = document.getElementById('auto-refresh-toggle');
-        
         if (isAutoRefreshEnabled) {
-            // Disable auto-refresh
-            if (autoRefreshInterval) {
-                clearInterval(autoRefreshInterval);
-                autoRefreshInterval = null;
-            }
-            isAutoRefreshEnabled = false;
-            toggleBtn.classList.remove('text-primary');
-            toggleBtn.classList.add('text-gray-500');
-            showFlashMessage('Auto-refresh disabled', 'info');
+            stopAutoRefresh();
         } else {
-            // Enable auto-refresh (every 30 seconds)
-            autoRefreshInterval = setInterval(refreshAlerts, 30000);
-            isAutoRefreshEnabled = true;
-            toggleBtn.classList.remove('text-gray-500');
-            toggleBtn.classList.add('text-primary');
-            showFlashMessage('Auto-refresh enabled (30s)', 'success');
+            startAutoRefresh();
         }
     }
     
     // Legacy function for backward compatibility
     function updateAlerts(alerts) {
         updateAlertsDisplay(alerts);
+    }
+    
+    // Update visual indicators (global function)
+    function updateVisualIndicators() {
+        const autoRefreshIndicator = document.getElementById('auto-refresh-indicator');
+        const smartRefreshBtn = document.getElementById('smart-refresh-btn');
+        
+        if (isAutoRefreshEnabled) {
+            autoRefreshIndicator.classList.remove('opacity-0');
+            smartRefreshBtn.classList.add('text-primary');
+            smartRefreshBtn.classList.add('auto-refresh-active');
+            smartRefreshBtn.title = `Auto-refresh active (${formatInterval(refreshInterval)}). Click to refresh, click arrow for options`;
+        } else {
+            autoRefreshIndicator.classList.add('opacity-0');
+            smartRefreshBtn.classList.remove('text-primary');
+            smartRefreshBtn.classList.remove('auto-refresh-active');
+            smartRefreshBtn.title = 'Click to refresh, click arrow for options';
+        }
     }
 
     // Refresh all data
@@ -851,8 +1069,8 @@
         attachPaginationListeners();
         attachAlertListeners();
         
-        // Add auto-refresh toggle listener
-        document.getElementById('auto-refresh-toggle').addEventListener('click', toggleAutoRefresh);
+        // Initialize smart refresh button
+        initSmartRefreshButton();
         
         // Close modal when clicking outside
         document.getElementById('alertModal').addEventListener('click', (e) => {
@@ -887,16 +1105,6 @@
         // Set initial alert count
         const initialAlerts = document.querySelectorAll('.alert-item');
         lastAlertCount = initialAlerts.length;
-        
-        // Add visual feedback for auto-refresh toggle
-        const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
-        autoRefreshToggle.addEventListener('mouseenter', function() {
-            if (!isAutoRefreshEnabled) {
-                this.title = 'Click to enable auto-refresh (30s)';
-            } else {
-                this.title = 'Click to disable auto-refresh';
-            }
-        });
     });
 </script>
 
@@ -915,16 +1123,58 @@
         transition: opacity 0.3s ease;
     }
     
-    /* Auto-refresh toggle styles */
-    #auto-refresh-toggle.active {
-        color: #3498db;
+    /* Smart refresh button styles */
+    #smart-refresh-btn {
+        transition: all 0.2s ease;
+    }
+    
+    #smart-refresh-btn:hover {
+        transform: scale(1.05);
+    }
+    
+    #smart-refresh-btn.auto-refresh-active {
         animation: pulse 2s infinite;
+    }
+    
+    #auto-refresh-indicator {
+        animation: pulse 1.5s infinite;
     }
     
     @keyframes pulse {
         0% { opacity: 1; }
         50% { opacity: 0.5; }
         100% { opacity: 1; }
+    }
+    
+    /* Context menu styles */
+    #refresh-context-menu {
+        transition: all 0.2s ease;
+        transform-origin: top right;
+    }
+    
+    #refresh-context-menu:not(.hidden) {
+        animation: slideIn 0.2s ease;
+    }
+    
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+    
+    /* Context menu button hover effects */
+    #refresh-context-menu button:hover {
+        background-color: #f3f4f6;
+    }
+    
+    /* Radio button styles */
+    #refresh-context-menu input[type="radio"] {
+        accent-color: #3498db;
     }
     
     /* Alert item hover effects */
@@ -940,6 +1190,19 @@
     /* Loading animation for refresh icon */
     .fa-spin {
         animation: spin 1s linear infinite;
+    }
+    
+    /* Notification styles */
+    .notification {
+        transition: all 0.3s ease;
+    }
+    
+    .notification.slide-in {
+        transform: translateX(0);
+    }
+    
+    .notification.slide-out {
+        transform: translateX(100%);
     }
 </style>
 {% endblock %}
