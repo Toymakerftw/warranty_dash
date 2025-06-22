@@ -21,9 +21,11 @@ def upload_csv():
     
     if request.method == 'POST':
         file = request.files['csv_file']
+        upload_mode = request.form.get('uploadMode', 'add')  # Default to 'add' if not specified
+        
         if file and (file.filename.endswith('.csv') or file.filename.endswith('.txt')):
             try:
-                logger.info(f"CSV upload started by admin {current_user.username}: {file.filename}")
+                logger.info(f"CSV upload started by admin {current_user.username}: {file.filename}, mode: {upload_mode}")
                 # Parse CSV data with error handling
                 csv_file = TextIOWrapper(file.stream, encoding='utf-8', errors='replace')
                 reader = csv.DictReader(csv_file)
@@ -34,6 +36,12 @@ def upload_csv():
                 count = 0
                 errors = 0
                 skipped = 0
+                updated = 0
+                
+                # For Full Sync mode, clear existing data first
+                if upload_mode == 'sync':
+                    cursor.execute('DELETE FROM assets')
+                    logger.info(f"Full sync mode: Cleared existing assets")
                 
                 for row_num, row in enumerate(reader, 1):
                     try:
@@ -47,6 +55,8 @@ def upload_csv():
                         service_tag = clean_field(row.get('service_tag'))
                         manufacturer = clean_field(row.get('manufacturer'))
                         model = clean_field(row.get('model', ''))
+                        purchase_date = normalize_date(row.get('purchase_date', ''))
+                        notes = clean_field(row.get('notes', ''))
                         
                         # Handle warranty date
                         warranty_date = normalize_date(row.get('warranty_end_date', ''))
@@ -56,27 +66,95 @@ def upload_csv():
                             errors += 1
                             logger.warning(f"Row {row_num}: Missing required fields - {row}")
                             continue
+                        
+                        if upload_mode == 'add':
+                            # Check if asset already exists
+                            cursor.execute('SELECT id FROM assets WHERE asset_tag = ?', (asset_tag,))
+                            if cursor.fetchone():
+                                skipped += 1
+                                logger.debug(f"Row {row_num}: Asset {asset_tag} already exists, skipping")
+                                continue
                             
-                        # Insert into database with created_at timestamp and user
-                        cursor.execute('''
-                            INSERT INTO assets (
-                                asset_tag, 
-                                service_tag, 
-                                manufacturer, 
+                            # Insert new asset
+                            cursor.execute('''
+                                INSERT INTO assets (
+                                    asset_tag, 
+                                    service_tag, 
+                                    manufacturer, 
+                                    model,
+                                    warranty_end_date,
+                                    purchase_date,
+                                    notes,
+                                    created_by,
+                                    created_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                            ''', (
+                                asset_tag,
+                                service_tag,
+                                manufacturer,
                                 model,
-                                warranty_end_date,
-                                created_by,
-                                created_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-                        ''', (
-                            asset_tag,
-                            service_tag,
-                            manufacturer,
-                            model,
-                            warranty_date,
-                            current_user.id
-                        ))
-                        count += 1
+                                warranty_date,
+                                purchase_date,
+                                notes,
+                                current_user.id
+                            ))
+                            count += 1
+                            
+                        elif upload_mode == 'update':
+                            # Check if asset exists
+                            cursor.execute('SELECT id FROM assets WHERE asset_tag = ?', (asset_tag,))
+                            existing_asset = cursor.fetchone()
+                            
+                            if existing_asset:
+                                # Update existing asset
+                                cursor.execute('''
+                                    UPDATE assets SET
+                                        service_tag = ?,
+                                        manufacturer = ?,
+                                        model = ?,
+                                        warranty_end_date = ?,
+                                        purchase_date = ?,
+                                        notes = ?
+                                    WHERE asset_tag = ?
+                                ''', (
+                                    service_tag,
+                                    manufacturer,
+                                    model,
+                                    warranty_date,
+                                    purchase_date,
+                                    notes,
+                                    asset_tag
+                                ))
+                                updated += 1
+                            else:
+                                skipped += 1
+                                logger.debug(f"Row {row_num}: Asset {asset_tag} not found, skipping update")
+                                
+                        elif upload_mode == 'sync':
+                            # For sync mode, always insert (existing data was cleared)
+                            cursor.execute('''
+                                INSERT INTO assets (
+                                    asset_tag, 
+                                    service_tag, 
+                                    manufacturer, 
+                                    model,
+                                    warranty_end_date,
+                                    purchase_date,
+                                    notes,
+                                    created_by,
+                                    created_at
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                            ''', (
+                                asset_tag,
+                                service_tag,
+                                manufacturer,
+                                model,
+                                warranty_date,
+                                purchase_date,
+                                notes,
+                                current_user.id
+                            ))
+                            count += 1
                         
                     except Exception as e:
                         errors += 1
@@ -84,18 +162,35 @@ def upload_csv():
                 
                 db.commit()
                 
-                # Prepare feedback message
-                if count == 0:
-                    flash('No valid assets were imported', 'danger')
-                    logger.warning("CSV upload completed with no valid assets")
-                elif errors == 0:
-                    flash(f'Successfully imported {count} assets', 'success')
-                    logger.info(f"CSV upload completed by admin {current_user.username}: {count} assets imported")
-                else:
-                    message = f'Imported {count} assets with {errors} errors and {skipped} empty rows skipped'
-                    flash(message, 'warning' if count > 0 else 'danger')
-                    logger.warning(message)
+                # Prepare feedback message based on upload mode
+                if upload_mode == 'add':
+                    if count == 0:
+                        flash('No new assets were imported (all assets already exist)', 'warning')
+                    elif errors == 0:
+                        flash(f'Successfully imported {count} new assets', 'success')
+                    else:
+                        message = f'Imported {count} new assets with {errors} errors and {skipped} existing assets skipped'
+                        flash(message, 'warning' if count > 0 else 'danger')
+                        
+                elif upload_mode == 'update':
+                    if updated == 0:
+                        flash('No existing assets were updated (no matching assets found)', 'warning')
+                    elif errors == 0:
+                        flash(f'Successfully updated {updated} existing assets', 'success')
+                    else:
+                        message = f'Updated {updated} existing assets with {errors} errors and {skipped} assets not found'
+                        flash(message, 'warning' if updated > 0 else 'danger')
+                        
+                elif upload_mode == 'sync':
+                    if count == 0:
+                        flash('No assets were imported during full sync', 'danger')
+                    elif errors == 0:
+                        flash(f'Successfully synced {count} assets (replaced all existing data)', 'success')
+                    else:
+                        message = f'Synced {count} assets with {errors} errors during full sync'
+                        flash(message, 'warning' if count > 0 else 'danger')
                 
+                logger.info(f"CSV upload completed by admin {current_user.username}: mode={upload_mode}, count={count}, updated={updated}, errors={errors}")
                 return redirect(url_for('main.dashboard'))
                 
             except Exception as e:
