@@ -1,4 +1,5 @@
-<div class="overflow-x-auto">
+<!-- Desktop Table View -->
+<div class="hidden lg:block overflow-x-auto">
     <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
             <tr>
@@ -81,8 +82,85 @@
         </tbody>
     </table>
 </div>
-<div class="bg-gray-50 px-6 py-3 flex items-center justify-between border-t border-gray-200">
-    <div class="text-sm text-gray-500">
+
+<!-- Mobile Card View -->
+<div class="lg:hidden space-y-3">
+    {% for asset in assets %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 touch-manipulation" data-id="{{ asset.id }}">
+        <div class="flex justify-between items-start mb-3">
+            <div class="flex-1 min-w-0">
+                <h3 class="text-lg font-semibold text-gray-900 truncate">{{ asset.asset_tag }}</h3>
+                <p class="text-sm text-gray-500">{{ asset.manufacturer }}</p>
+            </div>
+            <div class="flex items-center space-x-2 ml-3">
+                {% if current_user.is_authenticated and current_user.is_admin %}
+                <a href="{{ url_for('assets.edit_asset', asset_id=asset.id) }}" class="text-primary hover:text-blue-700 p-2">
+                    <i class="fas fa-edit"></i>
+                </a>
+                <button class="text-danger hover:text-red-700 delete-btn p-2" data-id="{{ asset.id }}">
+                    <i class="fas fa-trash"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 mb-3">
+            <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wide">Model</p>
+                <p class="text-sm font-medium text-gray-900">{{ asset.model or 'N/A' }}</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wide">Serial</p>
+                <p class="text-sm font-medium text-gray-900 truncate">{{ asset.service_tag }}</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                {% if asset.status == 'Active' %}
+                <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Active</span>
+                {% elif asset.status == 'Expiring Soon' %}
+                <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Expiring Soon</span>
+                {% else %}
+                <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Expired</span>
+                {% endif %}
+                
+                <div class="flex items-center space-x-2">
+                    <div class="w-12 bg-gray-200 rounded-full h-2">
+                        {% if asset.status == 'Active' %}
+                            {% set progress = 100 %}
+                            <div class="bg-green-500 h-2 rounded-full" style="width: {{ progress }}%"></div>
+                        {% elif asset.status == 'Expiring Soon' %}
+                            {% set progress = (asset.days_until_expiry / 90) * 100 %}
+                            <div class="bg-yellow-500 h-2 rounded-full" style="width: {{ progress|int }}%"></div>
+                        {% else %}
+                            <div class="bg-red-500 h-2 rounded-full" style="width: 0%"></div>
+                        {% endif %}
+                    </div>
+                    <span class="text-xs text-gray-500">
+                        {% if asset.status == 'Expired' %}
+                            Expired
+                        {% elif asset.days_until_expiry == 0 %}
+                            Today
+                        {% else %}
+                            {{ asset.days_until_expiry }} days
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+        <i class="fas fa-search text-3xl text-gray-400 mb-3"></i>
+        <p class="text-gray-500">No assets found matching your filters</p>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+<div class="bg-gray-50 px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 gap-3">
+    <div class="text-sm text-gray-500 text-center sm:text-left">
         Showing 
         <span class="font-medium">{{ (pagination.page - 1) * pagination.items_per_page + 1 }}</span>
         to 
@@ -95,7 +173,44 @@
         </span>
         of <span class="font-medium">{{ pagination.total_items }}</span> assets
     </div>
-    <div class="flex space-x-2">
+    
+    <!-- Mobile Pagination -->
+    <div class="flex items-center justify-center space-x-2 lg:hidden">
+        {% if pagination.page > 1 %}
+            <a href="{{ url_for('main.dashboard', 
+                              page=pagination.page-1,
+                              status=current_status,
+                              manufacturer=current_manufacturer) }}" 
+               class="px-4 py-2 border rounded-md text-sm hover:bg-gray-100 pagination-link touch-manipulation">
+                <i class="fas fa-chevron-left mr-1"></i>Previous
+            </a>
+        {% else %}
+            <span class="px-4 py-2 border rounded-md text-sm text-gray-400">
+                <i class="fas fa-chevron-left mr-1"></i>Previous
+            </span>
+        {% endif %}
+
+        <span class="px-4 py-2 border rounded-md text-sm bg-primary text-white">
+            {{ pagination.page }} of {{ pagination.total_pages }}
+        </span>
+
+        {% if pagination.page < pagination.total_pages %}
+            <a href="{{ url_for('main.dashboard', 
+                              page=pagination.page+1,
+                              status=current_status,
+                              manufacturer=current_manufacturer) }}" 
+               class="px-4 py-2 border rounded-md text-sm hover:bg-gray-100 pagination-link touch-manipulation">
+                Next<i class="fas fa-chevron-right ml-1"></i>
+            </a>
+        {% else %}
+            <span class="px-4 py-2 border rounded-md text-sm text-gray-400">
+                Next<i class="fas fa-chevron-right ml-1"></i>
+            </span>
+        {% endif %}
+    </div>
+    
+    <!-- Desktop Pagination -->
+    <div class="hidden lg:flex space-x-2">
         {% if pagination.page > 1 %}
             <a href="{{ url_for('main.dashboard', 
                               page=pagination.page-1,

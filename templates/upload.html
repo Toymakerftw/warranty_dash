@@ -3,34 +3,34 @@
 {% block title %}Upload Assets - WarrantyTrack{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-4 sm:space-y-6">
     <!-- Header -->
-    <div class="flex justify-between items-center">
-        <div>
-            <h1 class="text-3xl font-bold text-gray-900">Upload Assets</h1>
-            <p class="text-gray-600 mt-2">Import warranty data from CSV files to manage your asset inventory</p>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="w-full sm:w-auto">
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Upload Assets</h1>
+            <p class="text-gray-600 mt-2 text-sm sm:text-base">Import warranty data from CSV files to manage your asset inventory</p>
         </div>
-        <div class="flex space-x-3">
-            <a href="{{ url_for('assets.download_template') }}" class="bg-secondary text-black px-4 py-2 rounded-lg hover:bg-yellow-400 transition duration-200">
+        <div class="flex w-full sm:w-auto">
+            <a href="{{ url_for('assets.download_template') }}" class="bg-secondary text-black px-4 py-2 rounded-lg hover:bg-yellow-400 transition duration-200 flex items-center justify-center text-sm sm:text-base w-full sm:w-auto">
                 <i class="fas fa-download mr-2"></i>Download Template
             </a>
         </div>
     </div>
 
     <!-- Upload Card -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+    <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
             <i class="fas fa-file-upload mr-2 text-primary"></i>Bulk Upload Assets
         </h3>
-        <p class="text-gray-600 mb-6">Upload a CSV file containing your asset warranty information.</p>
+        <p class="text-gray-600 mb-4 sm:mb-6 text-sm sm:text-base">Upload a CSV file containing your asset warranty information.</p>
         
         <form method="POST" action="{{ url_for('assets.upload_csv') }}" enctype="multipart/form-data">
             <!-- File Upload Area -->
-            <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-6 transition-all duration-200 hover:border-primary hover:bg-blue-50">
-                <i class="fas fa-cloud-upload-alt text-4xl text-primary mb-4"></i>
-                <h3 class="text-lg font-medium text-gray-700 mb-2">Drag and drop your CSV file here</h3>
+            <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 text-center mb-4 sm:mb-6 transition-all duration-200 hover:border-primary hover:bg-blue-50">
+                <i class="fas fa-cloud-upload-alt text-3xl sm:text-4xl text-primary mb-3 sm:mb-4"></i>
+                <h3 class="text-base sm:text-lg font-medium text-gray-700 mb-2">Drag and drop your CSV file here</h3>
                 <p class="text-sm text-gray-500 mb-4">or click to browse files</p>
-                <label class="cursor-pointer bg-primary text-white px-6 py-3 rounded-md hover:bg-opacity-90 transition duration-200 inline-flex items-center">
+                <label class="cursor-pointer bg-primary text-white px-6 py-3 rounded-md hover:bg-opacity-90 transition duration-200 inline-flex items-center justify-center text-sm sm:text-base touch-manipulation">
                     <i class="fas fa-folder-open mr-2"></i>
                     Browse Files
                     <input type="file" name="csv_file" id="csv_file" class="hidden" accept=".csv">
@@ -42,57 +42,57 @@
             </div>
             
             <!-- File Info Display -->
-            <div id="file-info" class="hidden mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div id="file-info" class="hidden mb-4 sm:mb-6 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div class="flex justify-between items-center">
-                    <div class="flex items-center">
-                        <i class="fas fa-file-csv text-green-600 mr-3 text-lg"></i>
-                        <div>
-                            <span id="file-name" class="font-medium text-green-800"></span>
-                            <span id="file-size" class="text-sm text-green-600 ml-2"></span>
+                    <div class="flex items-center min-w-0 flex-1">
+                        <i class="fas fa-file-csv text-green-600 mr-3 text-lg flex-shrink-0"></i>
+                        <div class="min-w-0 flex-1">
+                            <span id="file-name" class="font-medium text-green-800 truncate block"></span>
+                            <span id="file-size" class="text-sm text-green-600"></span>
                         </div>
                     </div>
-                    <button type="button" id="remove-file" class="text-green-600 hover:text-green-800 transition duration-200">
+                    <button type="button" id="remove-file" class="text-green-600 hover:text-green-800 transition duration-200 p-1 touch-manipulation">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
             
             <!-- Upload Options -->
-            <div class="mb-6">
-                <h4 class="text-md font-medium text-gray-700 mb-4">
+            <div class="mb-4 sm:mb-6">
+                <h4 class="text-sm sm:text-md font-medium text-gray-700 mb-3 sm:mb-4">
                     <i class="fas fa-cog mr-2 text-primary"></i>Upload Options
                 </h4>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <label class="upload-option flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200" data-value="add">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                    <label class="upload-option flex items-center p-3 sm:p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200 touch-manipulation" data-value="add">
                         <input type="radio" name="uploadMode" value="add" class="form-radio text-primary" checked>
-                        <div class="ml-3">
-                            <div class="font-medium text-gray-900">Add New Assets</div>
-                            <div class="text-sm text-gray-500">Only add assets that don't exist</div>
+                        <div class="ml-3 min-w-0 flex-1">
+                            <div class="font-medium text-gray-900 text-sm sm:text-base">Add New Assets</div>
+                            <div class="text-xs sm:text-sm text-gray-500">Only add assets that don't exist</div>
                         </div>
                     </label>
-                    <label class="upload-option flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200" data-value="update">
+                    <label class="upload-option flex items-center p-3 sm:p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200 touch-manipulation" data-value="update">
                         <input type="radio" name="uploadMode" value="update" class="form-radio text-primary">
-                        <div class="ml-3">
-                            <div class="font-medium text-gray-900">Update Existing</div>
-                            <div class="text-sm text-gray-500">Update assets that already exist</div>
+                        <div class="ml-3 min-w-0 flex-1">
+                            <div class="font-medium text-gray-900 text-sm sm:text-base">Update Existing</div>
+                            <div class="text-xs sm:text-sm text-gray-500">Update assets that already exist</div>
                         </div>
                     </label>
-                    <label class="upload-option flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200" data-value="sync">
+                    <label class="upload-option flex items-center p-3 sm:p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition duration-200 touch-manipulation" data-value="sync">
                         <input type="radio" name="uploadMode" value="sync" class="form-radio text-primary">
-                        <div class="ml-3">
-                            <div class="font-medium text-gray-900">Full Sync</div>
-                            <div class="text-sm text-gray-500">Replace all existing data</div>
+                        <div class="ml-3 min-w-0 flex-1">
+                            <div class="font-medium text-gray-900 text-sm sm:text-base">Full Sync</div>
+                            <div class="text-xs sm:text-sm text-gray-500">Replace all existing data</div>
                         </div>
                     </label>
                 </div>
                 
                 <!-- Warning for Full Sync -->
-                <div id="sync-warning" class="hidden mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <div class="flex items-center">
-                        <i class="fas fa-exclamation-triangle text-red-600 mr-3"></i>
-                        <div>
-                            <div class="font-medium text-red-800">Warning: Full Sync Mode</div>
-                            <div class="text-sm text-red-600">This will delete all existing assets and replace them with the CSV data. This action cannot be undone.</div>
+                <div id="sync-warning" class="hidden mt-4 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div class="flex items-start">
+                        <i class="fas fa-exclamation-triangle text-red-600 mr-3 mt-0.5 flex-shrink-0"></i>
+                        <div class="min-w-0 flex-1">
+                            <div class="font-medium text-red-800 text-sm sm:text-base">Warning: Full Sync Mode</div>
+                            <div class="text-xs sm:text-sm text-red-600 mt-1">This will delete all existing assets and replace them with the CSV data. This action cannot be undone.</div>
                         </div>
                     </div>
                 </div>
@@ -101,7 +101,7 @@
             <!-- Submit Button -->
             <div class="flex justify-end">
                 <button type="submit" id="submit-btn" 
-                        class="bg-primary text-white px-8 py-3 rounded-md hover:bg-opacity-90 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center" 
+                        class="bg-primary text-white px-6 sm:px-8 py-3 rounded-md hover:bg-opacity-90 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base w-full sm:w-auto touch-manipulation" 
                         disabled>
                     <i class="fas fa-upload mr-2"></i>
                     Start Upload
@@ -111,55 +111,55 @@
     </div>
 
     <!-- Instructions Card -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+    <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+        <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
             <i class="fas fa-info-circle mr-2 text-primary"></i>CSV Format Instructions
         </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             <div>
-                <h4 class="font-medium text-gray-900 mb-3">Required Columns</h4>
-                <ul class="space-y-2 text-sm text-gray-600">
+                <h4 class="font-medium text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Required Columns</h4>
+                <ul class="space-y-2 text-xs sm:text-sm text-gray-600">
                     <li class="flex items-center">
-                        <i class="fas fa-check text-green-500 mr-2"></i>
-                        <code class="bg-gray-100 px-2 py-1 rounded">asset_tag</code> - Unique identifier
+                        <i class="fas fa-check text-green-500 mr-2 flex-shrink-0"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">asset_tag</code> - Unique identifier
                     </li>
                     <li class="flex items-center">
-                        <i class="fas fa-check text-green-500 mr-2"></i>
-                        <code class="bg-gray-100 px-2 py-1 rounded">manufacturer</code> - Device manufacturer
+                        <i class="fas fa-check text-green-500 mr-2 flex-shrink-0"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">manufacturer</code> - Device manufacturer
                     </li>
                     <li class="flex items-center">
-                        <i class="fas fa-check text-green-500 mr-2"></i>
-                        <code class="bg-gray-100 px-2 py-1 rounded">service_tag</code> - Serial number
+                        <i class="fas fa-check text-green-500 mr-2 flex-shrink-0"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">service_tag</code> - Serial number
                     </li>
                     <li class="flex items-center">
-                        <i class="fas fa-check text-green-500 mr-2"></i>
-                        <code class="bg-gray-100 px-2 py-1 rounded">warranty_end_date</code> - YYYY-MM-DD format
+                        <i class="fas fa-check text-green-500 mr-2 flex-shrink-0"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">warranty_end_date</code> - YYYY-MM-DD format
                     </li>
                 </ul>
             </div>
             <div>
-                <h4 class="font-medium text-gray-900 mb-3">Optional Columns</h4>
-                <ul class="space-y-2 text-sm text-gray-600">
+                <h4 class="font-medium text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Optional Columns</h4>
+                <ul class="space-y-2 text-xs sm:text-sm text-gray-600">
                     <li class="flex items-center">
-                        <i class="fas fa-info text-blue-500 mr-2"></i>
-                        <code class="bg-gray-100 px-2 py-1 rounded">model</code> - Device model
+                        <i class="fas fa-info text-blue-500 mr-2 flex-shrink-0"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">model</code> - Device model
                     </li>
                     <li class="flex items-center">
-                        <i class="fas fa-info text-blue-500 mr-2"></i>
-                        <code class="bg-gray-100 px-2 py-1 rounded">purchase_date</code> - YYYY-MM-DD format
+                        <i class="fas fa-info text-blue-500 mr-2 flex-shrink-0"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">purchase_date</code> - YYYY-MM-DD format
                     </li>
                     <li class="flex items-center">
-                        <i class="fas fa-info text-blue-500 mr-2"></i>
-                        <code class="bg-gray-100 px-2 py-1 rounded">notes</code> - Additional information
+                        <i class="fas fa-info text-blue-500 mr-2 flex-shrink-0"></i>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">notes</code> - Additional information
                     </li>
                 </ul>
             </div>
         </div>
         
         <!-- Upload Mode Instructions -->
-        <div class="mt-6 pt-6 border-t border-gray-200">
-            <h4 class="font-medium text-gray-900 mb-3">Upload Mode Details</h4>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div class="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
+            <h4 class="font-medium text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Upload Mode Details</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm">
                 <div class="p-3 bg-blue-50 rounded-lg">
                     <div class="font-medium text-blue-900 mb-1">Add New Assets</div>
                     <div class="text-blue-700">Only imports assets that don't already exist (based on asset_tag). Skips existing assets.</div>
